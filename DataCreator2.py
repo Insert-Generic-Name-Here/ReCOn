@@ -1,3 +1,4 @@
+from tqdm import tqdm
 import pandas as pd
 import threading
 import getpass
@@ -33,6 +34,7 @@ class DataCreator(object):
                 procs.append({'cpu_percent':proc_dct['cpu_percent'],
                               'memory_percent':proc_dct['memory_percent'],
                               'name':proc_dct['name'],
+                              'cmdline':proc_dct['cmdline'],
                               'status':proc_dct['status']
                              })
         process_log = pd.DataFrame(procs)
@@ -65,7 +67,7 @@ class DataCreator(object):
 if __name__ == '__main__':
     ''' How many seconds you want to Fetch Data '''
     totalTime = 40
-    dataCrt = DataCreator(interval=1)
-    for i in range(totalTime):
+    dataCrt = DataCreator(interval=0)
+    for i in tqdm(range(totalTime)):
         time.sleep(1)
     print('Dataset Created! Bye-Bye')
