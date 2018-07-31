@@ -6,7 +6,7 @@ import psutil
 import time
 import os
 
-class DataCreator(object):
+class CPUMonitor(object):
     """
     Threading example class
     The run() method will be started and it will run in the background
@@ -29,13 +29,13 @@ class DataCreator(object):
         procs = []
         for proc in psutil.process_iter():
             if proc.pid == os.getpid(): continue 
-            proc_dct = proc.as_dict()
-            if getpass.getuser() in str(proc_dct['username']):
-                procs.append({'cpu_percent':proc_dct['cpu_percent'],
-                              'memory_percent':proc_dct['memory_percent'],
-                              'name':proc_dct['name'],
-                              'cmdline':proc_dct['cmdline'],
-                              'status':proc_dct['status']
+            if getpass.getuser() in proc.username():
+                procs.append({'pid':            proc.pid,
+                              'cpu_percent':    proc.cpu_percent(),
+                              'memory_percent': proc.memory_percent(),
+                              'name':           proc.name(),
+                              'cmdline':        proc.cmdline(),
+                              'status':         proc.status()
                              })
         process_log = pd.DataFrame(procs)
         tmp = process_log.sort_values(['memory_percent'], ascending=False)[:10]
@@ -52,22 +52,25 @@ class DataCreator(object):
 #             gpuProcs = self.__FetchGPUProcesses() TODO: Implement GPU Monitor
 
             # if file does not exist write header
-            if not os.path.isfile('test_log.csv'):
-                cpuProcs.to_csv('test_log.csv', index=False)
+            if not os.path.isfile('cpu_log.csv'):
+                cpuProcs.to_csv('cpu_log.csv', index=False)
                 print("\nWriting Records.\n")
             # else it exists so append without writing the header
             else:
-                cpuProcs.to_csv('test_log.csv', mode='a', header=False, index=False)
+                cpuProcs.to_csv('cpu_log.csv', mode='a', header=False, index=False)
                 print("\nAppending Records.\n")
 
             time.sleep(self.interval)
 
 
 
+'''
+                            CPU Monitor Toy Example
+'''
 if __name__ == '__main__':
     ''' How many seconds you want to Fetch Data '''
     totalTime = 40
-    dataCrt = DataCreator(interval=0)
-    for i in tqdm(range(totalTime)):
+    cpuMonitor = CPUMonitor(interval=5)
+    for i in tqdm(range(totalTime), ascii=True, desc='Monitoring CPU...'):
         time.sleep(1)
     print('Dataset Created! Bye-Bye')
