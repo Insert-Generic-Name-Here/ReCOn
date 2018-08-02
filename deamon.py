@@ -4,6 +4,7 @@ from time import sleep
 import os, sys
 import getpass
 import pickle
+from conncectionmanager import monitor_chromium
 
 # Get the top-level logger object
 totaltime = 0
@@ -28,9 +29,9 @@ while 1:
         if proc.status() != 'running': continue
         if checkApplist(proc, applist):
             proc.kill()
-            callstack.append(proc.name())
+            monitor_chromium()
 
-    sleep(1.5)
+    sleep(0.5)
     if (totaltime  % 50) == 0:
         print ('working')
         with open("config.pkl", "rb") as fp:   # Unpickling

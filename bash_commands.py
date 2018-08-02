@@ -6,3 +6,6 @@ def export_conda_specs(specfile_name='spec-file.txt'):
 
 def create_conda_from_specfile(envname, specfile='spec-file.txt'):
 	return f'conda create --{envname}  --file {specfile}'
+
+def open_chromium_X(host, uname='pi'):
+	return f'ssh -X {uname}@{host} chromium-browser'
