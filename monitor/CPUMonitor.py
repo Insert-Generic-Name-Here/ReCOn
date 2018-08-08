@@ -80,13 +80,14 @@ class CPUMonitor(object):
         except queue.Empty:
             return None
 
-# '''
-#                             CPU Monitor Toy Example
-# '''
-# if __name__ == '__main__':
-#     ''' How many seconds you want to Fetch Data '''
-#     totalTime = 40
-#     cpuMonitor = CPUMonitor(interval=5)
-#     for i in tqdm(range(totalTime), ascii=True, desc='Monitoring CPU...'):
-#         time.sleep(1)
-#     print('Dataset Created! Bye-Bye')
+'''
+                            CPU Monitor Toy Example
+'''
+if __name__ == '__main__':
+    ''' How many seconds you want to Fetch Data '''
+    totalTime = 40
+    cpuMonitor = CPUMonitor(interval=5, logData=True, data_path=os.path.join('.', 'data'))
+
+    for i in tqdm(range(totalTime), ascii=True, desc='Monitoring CPU...'):
+        time.sleep(1)
+    print('Dataset Created! Bye-Bye')
