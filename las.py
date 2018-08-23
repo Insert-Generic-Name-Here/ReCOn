@@ -7,7 +7,7 @@ import configparser
 import paramiko 
 import argparse
 from setuptools import find_packages
-import connections
+import lib.connections
 
 
 servers = configparser.ConfigParser()
@@ -24,4 +24,4 @@ uname = servers[args.select_server]['uname']
 cmd = ' '.join(sys.argv[1:])
 if cmd == '': print('Shoooot yooo foookin mout and type foookin smthing m8')
 
-connections.connect_to_server(host, uname, cmd)
+lib.connections.connect_to_server(host, uname, cmd)

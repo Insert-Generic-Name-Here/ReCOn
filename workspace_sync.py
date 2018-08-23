@@ -1,7 +1,8 @@
 import os
 import paramiko
 import configparser
-import utilities.ServerWorkSync as sync
+from lib.connections import LOCAL_RECON_PATH, select_server
+import lib.utilities.ServerWorkSync as sync
 from watchdog.observers import Observer
 from time import gmtime, strftime, sleep
 
@@ -9,14 +10,21 @@ from time import gmtime, strftime, sleep
 if __name__ == '__main__':
     # Getting Remote Server Information (host, name, port)
     ssh_config = configparser.ConfigParser()
-    ssh_config.read(os.path.join('.', 'utilities', 'ssh_config.ini'))
+    # ssh_config.read(os.path.join('.', 'utilities', 'ssh_config.ini'))
 
-    ssh_hostname = ssh_config['CONNECTION']['HOST']
-    ssh_username = ssh_config['CONNECTION']['USER']
-    ssh_port     = ssh_config['CONNECTION']['PORT']
+    # ssh_hostname = ssh_config['CONNECTION']['HOST']
+    # ssh_username = ssh_config['CONNECTION']['USER']
+    # ssh_port     = ssh_config['CONNECTION']['PORT']
+    ssh_config.read(os.path.join(LOCAL_RECON_PATH,'servers.ini'))
+
+    ssh_config = select_server(ssh_config)
+    ssh_hostname = ssh_config['HOST']
+    ssh_username = ssh_config['USER']
+    ssh_port     = ssh_config['PORT']
 
     # Getting RSA Private Key
-    ssh_pkey = paramiko.RSAKey.from_private_key_file(config['CONNECTION']['PKEY'])
+    # ssh_pkey = paramiko.RSAKey.from_private_key_file(ssh_config['CONNECTION']['PKEY'])
+    ssh_pkey = paramiko.RSAKey.from_private_key_file(ssh_config['PKEY'])
     
     # Initiating the Connection and Opening an SFTP Session
     ssh_client = paramiko.SSHClient()
