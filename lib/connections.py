@@ -7,13 +7,11 @@ import configparser
 
 global LOCAL_HOME_FOLDER
 global LOCAL_RECON_PATH
-global ID_RSA_PATH
 
 
 def init():
     LOCAL_HOME_FOLDER = None
-    LOCAL_RECON_PATH = None    
-    ID_RSA_PATH = None
+    LOCAL_RECON_PATH = None
 
 
 def select_server(servers):
@@ -53,10 +51,11 @@ def ssh_connect(cmd, config_path, server_name, *args):
 	host = servers[server_name]['host']
 	uname = servers[server_name]['uname']
 	port = servers[server_name]['port']
-	
+	pkey = servers[server_name]['pkey']
+
 	ssh = paramiko.SSHClient()
 	ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-	ssh_pkey = paramiko.RSAKey.from_private_key_file(ID_RSA_PATH)
+	ssh_pkey = paramiko.RSAKey.from_private_key_file(pkey)
 	
 	try:
 		ssh.connect(host, port=port, pkey=ssh_pkey, username=uname)
@@ -108,10 +107,13 @@ def sftp_upload(data, dest, config_path, server_name):
 	host = servers[server_name]['host']
 	uname = servers[server_name]['uname']
 	port = servers[server_name]['port']
+	pkey = servers[server_name]['pkey']
+
 	ssh = paramiko.SSHClient()
 	ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-	ssh_pkey = paramiko.RSAKey.from_private_key_file(ID_RSA_PATH)
 
+	ssh_pkey = paramiko.RSAKey.from_private_key_file(pkey)
+	
 	ssh.connect(host, port=port, pkey=ssh_pkey, username=uname)
 	sftp = ssh.open_sftp()
 	sftp.put(data, dest, confirm=True)

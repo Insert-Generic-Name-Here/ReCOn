@@ -15,9 +15,6 @@ connections.LOCAL_RECON_PATH = get_path()
 print (f'[+] Local Path: {connections.LOCAL_RECON_PATH}')
 dirs = ['envs', 'config', 'lib']
 
-### SET RSA ID PATH
-connections.ID_RSA_PATH = os.path.join(connections.LOCAL_HOME_FOLDER, '.ssh', 'id_rsa')
-
 ## Local tree
 subprocess.Popen(create_dir_tree(connections.LOCAL_RECON_PATH, dirs).split(), stdout=subprocess.PIPE)
 print ('[+] Created Local Tree.')
@@ -52,10 +49,12 @@ servers.read(ini_path)
 for host in servers.sections():
 	uname = servers[host]['uname']
 	port = servers[host]['port']
-	# env_to_deploy = f'/home/{uname}/.recon/envs/{selected_env}_envfile.yml'
+	pkey = servers[host]['pkey']
+
 	ssh = paramiko.SSHClient()
 	ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-	ssh_pkey = paramiko.RSAKey.from_private_key_file(connections.ID_RSA_PATH)
+	ssh_pkey = paramiko.RSAKey.from_private_key_file(pkey)
+
 	try:
 		ssh.connect(servers[host]['host'], port=port, pkey=ssh_pkey, username=uname)
 

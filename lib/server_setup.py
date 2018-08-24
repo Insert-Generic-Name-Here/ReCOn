@@ -1,19 +1,32 @@
-import configparser
 import os
+import connections
+import configparser
 from pathlib import Path
+
 
 def server_ini_creator(path):
     Config = configparser.ConfigParser()
 
-    info = str(input('Add servers -> Nickname, Host, Username, Port, RSA ID (Private) Key Path, Enable-Jupyter-Forwarding(y/n) / next server...\n ex. pi 192.168.1.1 Josh 22 y \n'))
+    info = str(input('Add servers -> Nickname, Host, Username, Port, Enable-Jupyter-Forwarding(y/n) / next server...\n ex. pi, 192.168.1.1, Josh, 22, y \n'))
     servers = info.split('/')
-      
+
+
     for server in servers:
+        pkey_path = input(f'RSA (Private) Key Path for Server {server[1].strip()} (Default: {os.path.join(connections.LOCAL_HOME_FOLDER, '.ssh', 'id_rsa')}): ')
+
+        if (pkey_path == ''):
+            pkey_path = os.path.join(connections.LOCAL_HOME_FOLDER, '.ssh', 'id_rsa')
+
         server = server.split(',')
-        Config[server[0]] = {'HOST': server[1].strip(),'UNAME': server[2].strip(),'PORT': server[3].strip(), 'PKEY':server[4].strip(), 'JUPYTER': server[5].strip()}
+        Config[server[0]] = {'HOST'    : server[1].strip(),
+                             'UNAME'   : server[2].strip(),
+                             'PORT'    : server[3].strip(),
+                             'PKEY'    : pkey_path,
+                             'JUPYTER' : server[5].strip()}
 
     with open(os.path.join(path,'servers.ini'), 'w+') as configfile:
         Config.write(configfile)
+
 
 def get_path():
     home = str(Path.home())
@@ -26,6 +39,7 @@ def get_path():
             return path
         else:
             print ('invalid')
+
 
 def create_dir_tree(path,dirs):
     cmd = f"mkdir {path} "
