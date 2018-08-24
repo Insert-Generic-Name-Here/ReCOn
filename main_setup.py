@@ -79,4 +79,8 @@ for host in servers.sections():
 	except: 
 		print(f"Server {host} is unavailable.")
 
+conda_dir = connections.connect_to_server(cmd = "tac .bashrc | grep anaconda*/bin", config_path = ini_path)
+conda_dir = conda_dir[0].split()[1].split('=')[1].strip('\'').strip('"').split(':')[0]
+connections.connect_to_server(cmd = env_config.create_env, config_path = ini_path, cmd_args=(conda_dir, uname, selected_env))
+output = env_config.create_env(conda_dir, uname, selected_env)
 print ('[+] Setup Complete.')

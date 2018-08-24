@@ -60,20 +60,27 @@ def ssh_connect(cmd, config_path, server_name, *args):
 	try:
 		ssh.connect(host, port=port, pkey=ssh_pkey, username=uname)
 		stdin, stdout, stderr = ssh.exec_command(cmd(os.path.join('/home',uname,'.recon'), *args))
+		#### addition if something fails check ####
+		stdout.channel.recv_exit_status()
+		###########################################
 		# print (f'stdout:\n{stdout.readlines()}')
 		# print (f'stderr:\n{stderr.readlines()}')
-		print (f'[+] Success for Host: {host}')
+		print (f'[+] Success for {cmd} on host: {host}')
+		output = stdout.readlines()
 		ssh.close()
+		return output
 	except: 
 		print(f"[-] Host {host} is Unavailable.")
 
 
 def exec_all_servers(cmd,config_path,*args):
+	outputs = []
 	servers = configparser.ConfigParser()
 	servers.read(config_path)
 	for host in servers.sections():
 		print (f'\tConnecting with Host: {host}')
-		ssh_connect(cmd, config_path, host, *args)
+		outputs.append(ssh_connect(cmd, config_path, host, *args))
+	return outputs
 
 
 def connect_to_server(cmd, config_path, server_name= '', cmd_args=''):
@@ -92,10 +99,11 @@ def connect_to_server(cmd, config_path, server_name= '', cmd_args=''):
 
 	if server_name == '':
 		print ('\n[+] EXECUTING COMMANDS ON ALL SERVERS\n')
-		exec_all_servers(cmd, config_path, *cmd_args)
+		output = exec_all_servers(cmd, config_path, *cmd_args)
 	else:
 		print (f'\n[+] EXECUTING COMMANDS ON SERVER {server_name}\n')
-		ssh_connect(cmd, config_path, server_name, *cmd_args)
+		output = ssh_connect(cmd, config_path, server_name, *cmd_args)
+	return output
 
 
 def sftp_upload(data, dest, config_path, server_name):
