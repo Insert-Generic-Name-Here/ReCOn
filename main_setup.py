@@ -39,8 +39,8 @@ logging.init_logs(logpath, servers)
 
 ## CREATE REMOTE DIRECTORY TREE (N)
 for srv in servers:
-    stdin, stdout, stderr = servers[srv]['connection'].exec_command(create_dir_tree(servers[srv]['recon_path'],dirs))
-    logging.log_out_err(stdout, stderr, logpath, srv)
+	stdin, stdout, stderr = servers[srv]['connection'].exec_command(create_dir_tree(servers[srv]['recon_path'],dirs))
+	logging.log_out_err(stdout, stderr, logpath, srv)
 
 # ## CREATE REMOTE DIRECTORY TREE
 # connections.connect_to_server(create_dir_tree,ini_path,cmd_args=(dirs,) )
@@ -69,47 +69,29 @@ print (f'[+] Saved {selected_env} yml File.')
 local_env_file_path = f'{local_recon_path}/envs/{selected_env}_envfile.yml'
 for srv in servers:
 	target_file = f"{servers[srv]['recon_path']}/envs/{selected_env}_envfile.yml"
-	connections.sftp_upload(local_env_file_path, target_file, srv)
+	connections.sftp_upload(local_env_file_path, target_file, servers[srv])
 
-### configure server
-# Send remote py setup script
-servers = configparser.ConfigParser()
-servers.read(ini_path)
-for host in servers.sections():
-	uname = servers[host]['uname']
-	port = servers[host]['port']
-	pkey = servers[host]['pkey']
+### CREATE ENV AND SET AS DEFAULT ON REMOTE
 
-	ssh = paramiko.SSHClient()
-	ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-	ssh_pkey = paramiko.RSAKey.from_private_key_file(pkey)
+for srv in servers:
+	stdin, stdout, stderr = servers[srv]['connection'].exec_command("tac .bashrc | grep anaconda*/bin")
+	stdout.channel.recv_exit_status()
+	logging.log_out_err(stdout, stderr, logpath, srv)
+	conda_dir = stdout.readlines()
+	conda_dir = conda_dir[0].split()[1].split('=')[1].strip('\'').strip('"').split(':')[0]
+	stdin, stdout, stderr = servers[srv]['connection'].exec_command(env_config.create_env(conda_dir, servers[srv]['uname'], selected_env))
+	
+	print(f'\n[+] Creating Remote Environment: {selected_env} ...')
 
-	try:
-		ssh.connect(servers[host]['host'], port=port, pkey=ssh_pkey, username=uname)
+	for line in iter(stdout.readline, ""):
+		print(line, end="")
+	stdout.channel.recv_exit_status()
+	logging.log_out_err(stdout, stderr, logpath, srv)
 
-		stdin, stdout, stderr = ssh.exec_command("tac .bashrc | grep anaconda*/bin", get_pty=True)
+	stdin, stdout, stderr = servers[srv]['connection'].exec_command(env_config.set_default_env(selected_env))
+	logging.log_out_err(stdout, stderr, logpath, srv)
 
-		stdout.channel.recv_exit_status()
-		conda_dir = stdout.readlines()
-		conda_dir = conda_dir[0].split()[1].split('=')[1].strip('\'').strip('"').split(':')[0]
-
-		stdin, stdout, stderr = ssh.exec_command(env_config.create_env(conda_dir, uname, selected_env), get_pty=True)
-		print(f'\n[+] Creating Remote Environment: {selected_env} ...')
-		
-		for line in iter(stdout.readline, ""):
-			print(line, end="")
-		stdout.channel.recv_exit_status()
-
-		stdin, stdout, stderr = ssh.exec_command(env_config.set_default_env(selected_env))
-
-		print(f'[+] Created Remote Environment: {selected_env}')		
-		print('[+] Selected Environment is the Default.')
-		ssh.close()
-	except: 
-		print(f"Server {host} is unavailable.")
-
-conda_dir = connections.connect_to_server(cmd = "tac .bashrc | grep anaconda*/bin", config_path = ini_path)
-conda_dir = conda_dir[0].split()[1].split('=')[1].strip('\'').strip('"').split(':')[0]
-connections.connect_to_server(cmd = env_config.create_env, config_path = ini_path, cmd_args=(conda_dir, uname, selected_env))
-output = env_config.create_env(conda_dir, uname, selected_env)
-print ('[+] Setup Complete.')
+	print(f'[+] Created Remote Environment: {selected_env}')		
+	print('[+] Selected Environment is the Default.')
+	
+connections.close_all(servers)

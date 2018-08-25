@@ -4,16 +4,6 @@ import paramiko
 import threading
 import configparser
 
-
-global LOCAL_HOME_FOLDER
-global LOCAL_RECON_PATH
-
-
-def init():
-	LOCAL_HOME_FOLDER = None
-	LOCAL_RECON_PATH = None
-
-
 def select_server(servers):
 	opts = [host for host in servers.sections()]
 
@@ -43,105 +33,21 @@ def select_server(servers):
 	return servers[selected_server]
 
 
-### USE THESE FOR CONNECTING TO THE SERVERS ###
-def ssh_connect(cmd, config_path, server_name, *args):
-	servers = configparser.ConfigParser()
-	servers.read(config_path)
-
-	host = servers[server_name]['host']
-	uname = servers[server_name]['uname']
-	port = servers[server_name]['port']
-	pkey = servers[server_name]['pkey']
-
-	ssh = paramiko.SSHClient()
-	ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-	ssh_pkey = paramiko.RSAKey.from_private_key_file(pkey)
-	
-	try:
-		ssh.connect(host, port=port, pkey=ssh_pkey, username=uname)
-		stdin, stdout, stderr = ssh.exec_command(cmd(os.path.join('/home',uname,'.recon'), *args))
-		#### addition if something fails check ####
-		stdout.channel.recv_exit_status()
-		###########################################
-		# print (f'stdout:\n{stdout.readlines()}')
-		# print (f'stderr:\n{stderr.readlines()}')
-		print (f'[+] Success for {cmd} on host: {host}')
-		output = stdout.readlines()
-		ssh.close()
-		return output
-	except: 
-		print(f"[-] Host {host} is Unavailable.")
-
-
-def exec_all_servers(cmd,config_path,*args):
-	outputs = []
-	servers = configparser.ConfigParser()
-	servers.read(config_path)
-	for host in servers.sections():
-		print (f'\tConnecting with Host: {host}')
-		outputs.append(ssh_connect(cmd, config_path, host, *args))
-	return outputs
-
-
-def connect_to_server(cmd, config_path, server_name= '', cmd_args=''):
-	''' Connect with one or more servers.
-
-			IMP: If host or uname variables are empty, exec command on every available server
-
-			Keyword arguments:
-			cmd -- command to be executed
-			host -- host to connect to
-			uname --  username
-			*args -- more args if needed
-			"""
-		'''
-	print (f'[+] Configuration Path is: {config_path}')
-
-	if server_name == '':
-		print ('\n[+] EXECUTING COMMANDS ON ALL SERVERS\n')
-		output = exec_all_servers(cmd, config_path, *cmd_args)
-	else:
-		print (f'\n[+] EXECUTING COMMANDS ON SERVER {server_name}\n')
-		output = ssh_connect(cmd, config_path, server_name, *cmd_args)
-	return output
-
-
-# def sftp_upload_old(data, dest, config_path, server_name):
-# 	print (f'\tSource Data Path: {data}')
-# 	print (f'\tDestination Data Path: {dest}')
-
-# 	servers = configparser.ConfigParser()
-# 	servers.read(config_path)
-# 	host = servers[server_name]['host']
-# 	uname = servers[server_name]['uname']
-# 	port = servers[server_name]['port']
-# 	pkey = servers[server_name]['pkey']
-
-# 	ssh = paramiko.SSHClient()
-# 	ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
-# 	ssh_pkey = paramiko.RSAKey.from_private_key_file(pkey)
-	
-# 	ssh.connect(host, port=port, pkey=ssh_pkey, username=uname)
-# 	sftp = ssh.open_sftp()
-# 	sftp.put(data, dest, confirm=True)
-# 	print (f'\tUpload Successful for Server {host}')
-# 	ssh.close()
 
 def sftp_upload(data, dest, server):
 	print (f'\tSource Data Path: {data}')
-    print (f'\tDestination Data Path: {dest}')
-    print ('server' , server)
-    ssh = tmpdct[server]['connection']
-    sftp = ssh.open_sftp()
-    sftp.put(data, dest, confirm=True)
-    file_name = dest[dest.rfind('/')+1:]
-    files_in_dir = sftp.listdir(dest[:dest.rfind('/')+1])
-    if file_name in files_in_dir:
-        print (f'[+] SFTP for file "{file_name}" on server "{server}" successful')
-    else:
-        print('[-] SFTP transfer failed')
-	##### here
+	print (f'\tDestination Data Path: {dest}')
+	print ('server' , server)
+	ssh = server['connection']
+	sftp = ssh.open_sftp()
+	sftp.put(data, dest, confirm=True)
+	file_name = dest[dest.rfind('/')+1:]
+	files_in_dir = sftp.listdir(dest[:dest.rfind('/')+1])
+	if file_name in files_in_dir:
+		print (f'[+] SFTP for file "{file_name}" on server "{server}" successful')
+	else:
+		print('[-] SFTP transfer failed')
+	sftp.close()
 	
 
 def get_servers(ini_path):
@@ -171,3 +77,7 @@ def get_servers(ini_path):
 			print(f"[-] Host {server_name} is Unavailable.")
 
 	return server_objs
+
+def close_all(servers):
+	for serv in servers:
+		servers[serv]['connection'].close()
