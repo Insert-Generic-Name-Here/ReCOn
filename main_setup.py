@@ -5,42 +5,69 @@ from lib.server_setup import server_ini_creator, create_dir_tree, get_path
 from lib import env_config, connections
 import os, time
 from pathlib import Path
+import pprint
+import logging
 
+pp = pprint.PrettyPrinter(indent=4)
+#connections.init()
+#connections.LOCAL_HOME_FOLDER = Path.home()
 
-connections.init()
-connections.LOCAL_HOME_FOLDER = Path.home()
-connections.LOCAL_RECON_PATH = get_path()
+## GET THE LOCAL /.RECON PATH 
 
-### INIs
-print (f'[+] Local Path: {connections.LOCAL_RECON_PATH}')
-dirs = ['envs', 'config', 'lib']
+local_recon_path = get_path()
+logpath = os.path.join(local_recon_path, 'logs')
 
-## Local tree
-subprocess.Popen(create_dir_tree(connections.LOCAL_RECON_PATH, dirs).split(), stdout=subprocess.PIPE)
+## INITIALIZE THE UNIVERSAL TREE STRUCTURE (FROM LIST DIRS)
+print (f'[+] Local Path: {local_recon_path}')
+dirs = ['envs', 'config', 'lib', 'logs']
+
+## CREATE LOCAL DIRECTORY TREE
+subprocess.Popen(create_dir_tree(local_recon_path, dirs).split(), stdout=subprocess.PIPE)
 print ('[+] Created Local Tree.')
 
-server_ini_creator(connections.LOCAL_RECON_PATH)
+## CREATE THE INI FILE THAT CONTAINS INFO ABOUT THE SERVERS
+server_ini_creator(local_recon_path)
 print ('[+] Created Configuration ini')
-ini_path = os.path.join(connections.LOCAL_RECON_PATH, 'servers.ini')
+ini_path = os.path.join(local_recon_path, 'servers.ini')
 
-## Server tree
-connections.connect_to_server(create_dir_tree,ini_path,cmd_args=(dirs,) )
-print ('[+] Created Remote Tree.\n')
+## GET SERVER OBJECTS (N)
+servers = connections.get_servers(ini_path)
+pp.pprint(servers)
+
+## INIT THE LOGGING SEQUENCE (N)
+logging.init_logs(logpath, servers)
+
+## CREATE REMOTE DIRECTORY TREE (N)
+for srv in servers:
+    stdin, stdout, stderr = servers[srv]['connection'].exec_command(create_dir_tree(servers[srv]['recon_path'],dirs))
+    logging.log_out_err(stdout, stderr, logpath, srv)
+
+# ## CREATE REMOTE DIRECTORY TREE
+# connections.connect_to_server(create_dir_tree,ini_path,cmd_args=(dirs,) )
+# print ('[+] Created Remote Tree.\n')
 
 ### LAS
 
 
 ### Conda envs 
+
+## SELECT THE CONDA ENV THAT WILL BE REPLICATED ON THE SERVERS 
 selected_env = env_config.select_env()
 print (f'[+] Environment Selected: {selected_env}')
 
+## EXPORT THE SELECTED ENVIRONMENT AS A YML FILE
 proc = subprocess.Popen(env_config.export_env(selected_env), shell=True, stdout=subprocess.PIPE)
 proc.wait()
 # subprocess.Popen(env_config.export_env(selected_env), shell=True, stdout=subprocess.PIPE, executable='/bin/bash')
 # subprocess.Popen(['/bin/bash', '-c', env_config.export_env(selected_env)], stdout=subprocess.PIPE)
 print (f'[+] Saved {selected_env} yml File.')
 
+## UPLOAD SELECTED ENVIRONMENT ON EACH SERVER
 env_config.upload_env(selected_env, ini_path)
+
+for srv in servers:
+    stdin, stdout, stderr = servers[srv]['connection'].exec_command(create_dir_tree(servers[srv]['recon_path'],dirs))
+    logging.log_out_err(stdout, stderr, logpath, srv)
 
 ### configure server
 # Send remote py setup script

@@ -10,8 +10,8 @@ global LOCAL_RECON_PATH
 
 
 def init():
-    LOCAL_HOME_FOLDER = None
-    LOCAL_RECON_PATH = None
+	LOCAL_HOME_FOLDER = None
+	LOCAL_RECON_PATH = None
 
 
 def select_server(servers):
@@ -106,24 +106,59 @@ def connect_to_server(cmd, config_path, server_name= '', cmd_args=''):
 	return output
 
 
-def sftp_upload(data, dest, config_path, server_name):
+# def sftp_upload_old(data, dest, config_path, server_name):
+# 	print (f'\tSource Data Path: {data}')
+# 	print (f'\tDestination Data Path: {dest}')
+
+# 	servers = configparser.ConfigParser()
+# 	servers.read(config_path)
+# 	host = servers[server_name]['host']
+# 	uname = servers[server_name]['uname']
+# 	port = servers[server_name]['port']
+# 	pkey = servers[server_name]['pkey']
+
+# 	ssh = paramiko.SSHClient()
+# 	ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+# 	ssh_pkey = paramiko.RSAKey.from_private_key_file(pkey)
+	
+# 	ssh.connect(host, port=port, pkey=ssh_pkey, username=uname)
+# 	sftp = ssh.open_sftp()
+# 	sftp.put(data, dest, confirm=True)
+# 	print (f'\tUpload Successful for Server {host}')
+# 	ssh.close()
+
+def sftp_upload(data, dest, ssh):
 	print (f'\tSource Data Path: {data}')
 	print (f'\tDestination Data Path: {dest}')
-
-	servers = configparser.ConfigParser()
-	servers.read(config_path)
-	host = servers[server_name]['host']
-	uname = servers[server_name]['uname']
-	port = servers[server_name]['port']
-	pkey = servers[server_name]['pkey']
-
-	ssh = paramiko.SSHClient()
-	ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
-	ssh_pkey = paramiko.RSAKey.from_private_key_file(pkey)
-	
-	ssh.connect(host, port=port, pkey=ssh_pkey, username=uname)
 	sftp = ssh.open_sftp()
 	sftp.put(data, dest, confirm=True)
-	print (f'\tUpload Successful for Server {host}')
-	ssh.close()
+	
+
+def get_servers(ini_path):
+	server_objs = {}
+	servers = configparser.ConfigParser()
+	servers.read(ini_path)
+	for server_name in servers.sections():
+		print (f'\tConnecting with Host: {server_name}')
+
+		host = servers[server_name]['host']
+		uname = servers[server_name]['uname']
+		port = servers[server_name]['port']
+		pkey = servers[server_name]['pkey']
+
+		ssh = paramiko.SSHClient()
+		ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+		ssh_pkey = paramiko.RSAKey.from_private_key_file(pkey)
+
+		try:
+			ssh.connect(host, port=port, pkey=ssh_pkey, username=uname)
+			print (f'[+] Success for host: {server_name}')
+			curr_server = {}
+			curr_server = {'connection':ssh, 'host':host, 'uname':uname, 'port':port, 
+						   'pkey':pkey, 'recon_path': os.path.join('/home',uname,'.recon')}
+			server_objs.update({server_name : curr_server})
+		except: 
+			print(f"[-] Host {server_name} is Unavailable.")
+
+	return server_objs
