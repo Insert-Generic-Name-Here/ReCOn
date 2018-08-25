@@ -30,7 +30,7 @@ if __name__ == '__main__':
     ssh_client = paramiko.SSHClient()
     ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     ssh_client.connect(hostname=ssh_hostname, username=ssh_username, port=ssh_port, pkey=ssh_pkey)
-    sftp_client = ssh_client.open_sftp()
+    # sftp_client = ssh_client.open_sftp()
 
     # Initiating the Client and Server paths 
     ## Get The HOME Directory of the SSH Server
@@ -43,7 +43,7 @@ if __name__ == '__main__':
     ssh_client_localpath
 
     ## Instantiate a ServerWorkSync WatchDog (handler) as well as a Recursive Observer Object for the given handler
-    handler = sync.ServerWorkSync(sftp_client, localpath = ssh_client_localpath, remotepath = ssh_server_home_dir)  
+    handler = sync.ServerWorkSync(ssh_client, localpath = ssh_client_localpath, remotepath = ssh_server_home_dir)  
     observer = Observer()
     observer.schedule(handler, path = ssh_client_localpath, recursive = True)
     observer.start()

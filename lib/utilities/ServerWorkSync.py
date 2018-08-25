@@ -6,12 +6,12 @@ import errno
 
 class ServerWorkSync(PatternMatchingEventHandler):
 
-    def __init__(self, sftp_client, localpath, remotepath, patterns=None, ignore_patterns=None, ignore_directories=False, case_sensitive=False):   
+    def __init__(self, ssh_client, localpath, remotepath, patterns=None, ignore_patterns=None, ignore_directories=False, case_sensitive=False):   
         super(ServerWorkSync, self).__init__(patterns, ignore_patterns, ignore_directories, case_sensitive)    
         self.localpath = localpath
         self.root = os.path.split(localpath)[1]
         self.remotepath = remotepath
-        self.sftp_client = sftp_client
+        self.sftp_client = ssh_client.open_sftp()
         
         self.__handshake()
 
