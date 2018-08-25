@@ -128,11 +128,20 @@ def connect_to_server(cmd, config_path, server_name= '', cmd_args=''):
 # 	print (f'\tUpload Successful for Server {host}')
 # 	ssh.close()
 
-def sftp_upload(data, dest, ssh):
+def sftp_upload(data, dest, server):
 	print (f'\tSource Data Path: {data}')
-	print (f'\tDestination Data Path: {dest}')
-	sftp = ssh.open_sftp()
-	sftp.put(data, dest, confirm=True)
+    print (f'\tDestination Data Path: {dest}')
+    print ('server' , server)
+    ssh = tmpdct[server]['connection']
+    sftp = ssh.open_sftp()
+    sftp.put(data, dest, confirm=True)
+    file_name = dest[dest.rfind('/')+1:]
+    files_in_dir = sftp.listdir(dest[:dest.rfind('/')+1])
+    if file_name in files_in_dir:
+        print (f'[+] SFTP for file "{file_name}" on server "{server}" successful')
+    else:
+        print('[-] SFTP transfer failed')
+	##### here
 	
 
 def get_servers(ini_path):

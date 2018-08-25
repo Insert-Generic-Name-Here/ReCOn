@@ -62,12 +62,14 @@ proc.wait()
 # subprocess.Popen(['/bin/bash', '-c', env_config.export_env(selected_env)], stdout=subprocess.PIPE)
 print (f'[+] Saved {selected_env} yml File.')
 
-## UPLOAD SELECTED ENVIRONMENT ON EACH SERVER
-env_config.upload_env(selected_env, ini_path)
+# ## UPLOAD SELECTED ENVIRONMENT ON EACH SERVER
+# env_config.upload_env(selected_env, ini_path)
 
+## UPLOAD SELECTED ENVIRONMENT ON EACH SERVER (N)
+local_env_file_path = f'{local_recon_path}/envs/{selected_env}_envfile.yml'
 for srv in servers:
-    stdin, stdout, stderr = servers[srv]['connection'].exec_command(create_dir_tree(servers[srv]['recon_path'],dirs))
-    logging.log_out_err(stdout, stderr, logpath, srv)
+	target_file = f"{servers[srv]['recon_path']}/envs/{selected_env}_envfile.yml"
+	connections.sftp_upload(local_env_file_path, target_file, srv)
 
 ### configure server
 # Send remote py setup script

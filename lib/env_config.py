@@ -50,7 +50,14 @@ def select_env():
 	return selected_env
 		
 	
-def upload_env(selected_env, config_path):
+def upload_env(selected_env, servers, local_recon_path):
+	for srv in servers:
+		stdin, stdout, stderr = servers[srv]['connection'].exec_command(create_dir_tree(servers[srv]['recon_path'],dirs))
+		logging.log_out_err(stdout, stderr, logpath, srv)
+		target_file = f"{servers[srv]['recon_path']}/envs/{selected_env}_envfile.yml"
+		local_file
+		connections.sftp_upload(f'{local_recon_path}/envs/{selected_env}_envfile.yml', target_file, config_path, host)
+
 	servers = configparser.ConfigParser()
 	servers.read(config_path)
 	for host in servers.sections():
