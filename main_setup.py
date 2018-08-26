@@ -2,20 +2,20 @@ import subprocess
 import configparser
 import paramiko
 from lib.server_setup import server_ini_creator, create_dir_tree, get_path
-from lib import env_config, connections
+from lib import env_config, connections, server_logging
 import os, time
 from pathlib import Path
 import pprint
-import logging
 
 pp = pprint.PrettyPrinter(indent=4)
-#connections.init()
-#connections.LOCAL_HOME_FOLDER = Path.home()
 
-## GET THE LOCAL /.RECON PATH 
-
+## GET THE LOCAL /.RECON PATH AND INITIALIZE LOGS
 local_recon_path = get_path()
 logpath = os.path.join(local_recon_path, 'logs')
+
+## EXPORT LOCAL RECON PATH TO SYSTEM VARIABLE (via ~/.bashrc)
+export_recon_var = f"echo 'export RECON_LOCAL_PATH={local_recon_path}' >> ~/.bashrc && . ~/.bashrc"
+subprocess.Popen(export_recon_var.split(), stdout=subprocess.PIPE)
 
 ## INITIALIZE THE UNIVERSAL TREE STRUCTURE (FROM LIST DIRS)
 print (f'[+] Local Path: {local_recon_path}')
@@ -35,35 +35,25 @@ servers = connections.get_servers(ini_path)
 pp.pprint(servers)
 
 ## INIT THE LOGGING SEQUENCE (N)
-logging.init_logs(logpath, servers)
+server_logging.init_logs(logpath, servers)
 
 ## CREATE REMOTE DIRECTORY TREE (N)
 for srv in servers:
 	stdin, stdout, stderr = servers[srv]['connection'].exec_command(create_dir_tree(servers[srv]['recon_path'],dirs))
-	logging.log_out_err(stdout, stderr, logpath, srv)
-
-# ## CREATE REMOTE DIRECTORY TREE
-# connections.connect_to_server(create_dir_tree,ini_path,cmd_args=(dirs,) )
-# print ('[+] Created Remote Tree.\n')
+	server_logging.log_out_err(stdout, stderr, logpath, srv)
 
 ### LAS
 
 
 ### Conda envs 
-
 ## SELECT THE CONDA ENV THAT WILL BE REPLICATED ON THE SERVERS 
 selected_env = env_config.select_env()
 print (f'[+] Environment Selected: {selected_env}')
 
 ## EXPORT THE SELECTED ENVIRONMENT AS A YML FILE
-proc = subprocess.Popen(env_config.export_env(selected_env), shell=True, stdout=subprocess.PIPE)
+proc = subprocess.Popen(env_config.export_env(selected_env, local_recon_path), shell=True, stdout=subprocess.PIPE)
 proc.wait()
-# subprocess.Popen(env_config.export_env(selected_env), shell=True, stdout=subprocess.PIPE, executable='/bin/bash')
-# subprocess.Popen(['/bin/bash', '-c', env_config.export_env(selected_env)], stdout=subprocess.PIPE)
 print (f'[+] Saved {selected_env} yml File.')
-
-# ## UPLOAD SELECTED ENVIRONMENT ON EACH SERVER
-# env_config.upload_env(selected_env, ini_path)
 
 ## UPLOAD SELECTED ENVIRONMENT ON EACH SERVER (N)
 local_env_file_path = f'{local_recon_path}/envs/{selected_env}_envfile.yml'
@@ -72,11 +62,10 @@ for srv in servers:
 	connections.sftp_upload(local_env_file_path, target_file, servers[srv])
 
 ### CREATE ENV AND SET AS DEFAULT ON REMOTE
-
 for srv in servers:
 	stdin, stdout, stderr = servers[srv]['connection'].exec_command("tac .bashrc | grep anaconda*/bin")
 	stdout.channel.recv_exit_status()
-	logging.log_out_err(stdout, stderr, logpath, srv)
+	server_logging.log_out_err(stdout, stderr, logpath, srv)
 	conda_dir = stdout.readlines()
 	conda_dir = conda_dir[0].split()[1].split('=')[1].strip('\'').strip('"').split(':')[0]
 	stdin, stdout, stderr = servers[srv]['connection'].exec_command(env_config.create_env(conda_dir, servers[srv]['uname'], selected_env))
@@ -86,12 +75,13 @@ for srv in servers:
 	for line in iter(stdout.readline, ""):
 		print(line, end="")
 	stdout.channel.recv_exit_status()
-	logging.log_out_err(stdout, stderr, logpath, srv)
+	server_logging.log_out_err(stdout, stderr, logpath, srv)
 
 	stdin, stdout, stderr = servers[srv]['connection'].exec_command(env_config.set_default_env(selected_env))
-	logging.log_out_err(stdout, stderr, logpath, srv)
+	server_logging.log_out_err(stdout, stderr, logpath, srv)
 
 	print(f'[+] Created Remote Environment: {selected_env}')		
 	print('[+] Selected Environment is the Default.')
 	
 connections.close_all(servers)
+print('[+] Setup Complete. Please Open a new Terminal.')

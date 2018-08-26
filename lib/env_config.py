@@ -10,8 +10,8 @@ def create_env(conda_dir, uname, selected_env):
 def set_default_env(envname):
 	return f"echo 'source activate {envname}' >> ~/.bashrc && . ~/.bashrc"
 
-def export_env(selected_env):
-	return f'conda env export --no-builds -n {selected_env} > {connections.LOCAL_RECON_PATH}/envs/{selected_env}_envfile.yml'
+def export_env(selected_env, LOCAL_RECON_PATH):
+	return f'conda env export --no-builds -n {selected_env} > {LOCAL_RECON_PATH}/envs/{selected_env}_envfile.yml'
 
 def yes_no(msg, default_yes=True):
 	if default_yes:

@@ -81,3 +81,4 @@ def get_servers(ini_path):
 def close_all(servers):
 	for serv in servers:
 		servers[serv]['connection'].close()
+	print ('[+] All Connections Closed.')	
