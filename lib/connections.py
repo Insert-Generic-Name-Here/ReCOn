@@ -50,33 +50,38 @@ def sftp_upload(data, dest, server):
 	sftp.close()
 	
 
-def get_servers(ini_path):
+def get_servers(ini_path, host_name=''):
 	server_objs = {}
 	servers = configparser.ConfigParser()
 	servers.read(ini_path)
-	for server_name in servers.sections():
-		print (f'\tConnecting with Host: {server_name}')
+	if host_name == '':
+		for server_name in servers.sections():
+			server_objs.update({server_name : get_server_object(server_name, servers)})
+		return server_objs
+	else:
+		return get_server_object(host_name, servers)
+	
+def get_server_object(server_name, servers_ini):
+	print (f'\tConnecting with Host: {server_name}')
+	host = servers_ini[server_name]['host']
+	uname = servers_ini[server_name]['uname']
+	port = servers_ini[server_name]['port']
+	pkey = servers_ini[server_name]['pkey']
 
-		host = servers[server_name]['host']
-		uname = servers[server_name]['uname']
-		port = servers[server_name]['port']
-		pkey = servers[server_name]['pkey']
+	ssh = paramiko.SSHClient()
+	ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+	ssh_pkey = paramiko.RSAKey.from_private_key_file(pkey)
 
-		ssh = paramiko.SSHClient()
-		ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-		ssh_pkey = paramiko.RSAKey.from_private_key_file(pkey)
-
-		try:
-			ssh.connect(host, port=port, pkey=ssh_pkey, username=uname)
-			print (f'[+] Success for host: {server_name}')
-			curr_server = {}
-			curr_server = {'connection':ssh, 'host':host, 'uname':uname, 'port':port, 
-						   'pkey':pkey, 'recon_path': os.path.join('/home',uname,'.recon')}
-			server_objs.update({server_name : curr_server})
-		except: 
-			print(f"[-] Host {server_name} is Unavailable.")
-
-	return server_objs
+	try:
+		ssh.connect(host, port=port, pkey=ssh_pkey, username=uname)
+		print (f'[+] Success for host: {server_name}')
+		curr_server = {}
+		curr_server = {'connection':ssh, 'host':host, 'uname':uname, 'port':port, 
+					   'pkey':pkey, 'recon_path': os.path.join('/home',uname,'.recon')}
+		return curr_server
+	except:
+		print(f"[-] Host {server_name} is Unavailable.")
+		return 0		
 
 def close_all(servers):
 	for serv in servers:
