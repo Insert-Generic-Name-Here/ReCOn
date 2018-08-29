@@ -20,26 +20,29 @@ from time import gmtime, strftime, sleep
 if __name__ == '__main__':
     ssh_config = configparser.ConfigParser()
     ssh_config.read(os.path.join(os.environ['RECON_LOCAL_PATH'],'servers.ini'))
+    # ssh_config.read(os.path.join('lib', 'utilities','ssh_config.ini'))
     ssh_config = select_server(ssh_config)
 
-    ssh_client = paramiko.SSHClient()
-    ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    
     curr_server = {'host':ssh_config['HOST'], 'uname':ssh_config['UNAME'], 'port':ssh_config['PORT'], 
                    'pkey':ssh_config['PKEY'], 'recon_path':os.path.join('/home',ssh_config['UNAME'],'.recon')}
     
     # Initiating the Connection
-    curr_server['connection'] = ssh_client.connect(hostname=curr_server['host'], username=curr_server['uname'], port=curr_server['port'], pkey=curr_server['pkey'])
+    ssh_client = paramiko.SSHClient()
+    ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    ssh_pkey = paramiko.RSAKey.from_private_key_file(curr_server['pkey'])    
+    
+    ssh_client.connect(hostname=curr_server['host'], username=curr_server['uname'], port=curr_server['port'], pkey=ssh_pkey)
+    curr_server['connection'] = ssh_client
 
     # Initiating the Client and Server paths 
     ## Get The HOME Directory of the SSH Server
     stdin, stdout, stderr = curr_server['connection'].exec_command("echo $HOME")
     ssh_server_home_dir = stdout.readlines()[0].split('\n')[0]
-    ssh_server_home_dir
+    # ssh_server_home_dir
 
     ## Get the Workspace Directory of SSH Client 
     ssh_client_localpath = os.path.abspath(".")
-    ssh_client_localpath
+    # ssh_client_localpath
 
     ## Instantiate a ServerWorkSync WatchDog (handler) as well as a Recursive Observer Object for the given handler
     handler = sync.ServerWorkSync(curr_server['connection'], localpath = ssh_client_localpath, remotepath = ssh_server_home_dir)  

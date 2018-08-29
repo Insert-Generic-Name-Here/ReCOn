@@ -14,3 +14,5 @@ notes/
 \.vscode/
 
 \.vs/
+
+lib/utilities/ssh_config\.ini
