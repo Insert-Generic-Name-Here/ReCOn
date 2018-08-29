@@ -2,12 +2,15 @@ import subprocess
 import configparser
 import paramiko
 from lib.server_setup import server_ini_creator, create_dir_tree, get_path
-from lib import env_config, connections, server_logging
+from lib import env_config, connections, server_logging, workspaces
 import os, time
 from pathlib import Path
 import pprint
 
+
 pp = pprint.PrettyPrinter(indent=4)
+
+#### TREES AND LOGGING ####
 
 ## GET THE LOCAL /.RECON PATH AND INITIALIZE LOGS
 local_recon_path = get_path()
@@ -42,10 +45,14 @@ for srv in servers:
 	stdin, stdout, stderr = servers[srv]['connection'].exec_command(create_dir_tree(servers[srv]['recon_path'],dirs))
 	server_logging.log_out_err(stdout, stderr, logpath, srv)
 
-### LAS
+#### LAS ####
 
+#### WORKSPACES ####
+# Create workspaces ini
+workspaces.workspace_ini_creator(ini_path)
 
-### Conda envs 
+### ENVIRONMENTS ####
+
 ## SELECT THE CONDA ENV THAT WILL BE REPLICATED ON THE SERVERS 
 selected_env = env_config.select_env()
 print (f'[+] Environment Selected: {selected_env}')
