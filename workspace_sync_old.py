@@ -2,7 +2,7 @@ import os
 import paramiko
 import configparser
 from lib.connections import LOCAL_RECON_PATH, select_server
-import lib.utilities.ServerWorkSync as sync
+import lib.ServerWorkSync as sync
 from watchdog.observers import Observer
 from time import gmtime, strftime, sleep
 

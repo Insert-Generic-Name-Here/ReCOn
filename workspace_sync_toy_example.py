@@ -3,7 +3,7 @@ from sys import argv
 import paramiko
 import configparser
 from lib.connections import select_server
-import lib.utilities.ServerWorkSync as sync
+import lib.ServerWorkSync as sync
 from watchdog.observers import Observer
 from time import gmtime, strftime, sleep
 

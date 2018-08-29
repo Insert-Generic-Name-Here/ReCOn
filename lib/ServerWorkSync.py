@@ -2,6 +2,7 @@ import paramiko
 from watchdog.events import PatternMatchingEventHandler
 import os
 import errno
+# from lib.server_logging import log_observer
 
 
 class ServerWorkSync(PatternMatchingEventHandler):
@@ -72,7 +73,7 @@ class ServerWorkSync(PatternMatchingEventHandler):
             try:
                 self.sftp_client.stat(dir_)
             except:
-                print (f'Created directory {dir_}')
+                #print (f'Created directory {dir_}')
                 self.sftp_client.mkdir(dir_)
 
 
@@ -87,7 +88,7 @@ class ServerWorkSync(PatternMatchingEventHandler):
             except:
                 pass
             for file in walker[2]:
-                print (f'\tCopying {os.path.join(walker[0],file)}...')
+                #print (f'\tCopying {os.path.join(walker[0],file)}...')
                 self.sftp_client.put(os.path.join(walker[0],file),os.path.join(remotepath,walker[0],file)) 
         os.chdir(tmp)
     
@@ -95,8 +96,8 @@ class ServerWorkSync(PatternMatchingEventHandler):
     def __handshake(self):
         direxists = self.__directory_exists(os.path.join(self.remotepath, self.root))
         
+        print ("> Initiating Handshake. Transferring All Data to SSH Server...")
         if not direxists:
-            print ("> Initiating Handshake. Transferring All Data to SSH Server...")
             self.__cwd_scp(self.localpath, self.remotepath)
         else:
             ''' Update the old Files; Delete the files (and Directories) that don't exist on client '''
@@ -109,14 +110,14 @@ class ServerWorkSync(PatternMatchingEventHandler):
                         mtime_server = self.sftp_client.stat(file).st_mtime
                         mtime_local  = os.stat(os.path.join(self.localpath, dir_of_interest, files[idx])).st_mtime
                         if (mtime_local > mtime_server):
-                            print(f'Updated file: {file}')
+                            #print(f'Updated file: {file}')
                             self.sftp_client.put(os.path.join(self.localpath, dir_of_interest, files[idx]), file)
                     except IOError as e:
                         if e.errno == errno.ENOENT:
-                            print(f'Deleted file: {file}')
+                            #print(f'Deleted file: {file}')
                             self.sftp_client.remove(file)
                             if not os.path.exists(os.path.join(self.localpath, dir_of_interest)) and len(self.sftp_client.listdir(root)) == 0:
-                                print(f'Deleted directory: {root}')                                
+                                #print(f'Deleted directory: {root}')                                
                                 self.sftp_client.rmdir(root)           
             
 
@@ -128,8 +129,7 @@ class ServerWorkSync(PatternMatchingEventHandler):
                 try:
                     self.sftp_client.stat(dir_of_interest)
                 except IOError as e:
-                    if e.errno == errno.ENOENT:
-                        print (dir_of_interest)
+                    if e.errno == errno.ENOENT: 
                         self.mkdir_p(dir_of_interest, is_dir=True)
                         
                 for file in files:
@@ -138,7 +138,7 @@ class ServerWorkSync(PatternMatchingEventHandler):
                     except IOError as e:
                         if e.errno == errno.ENOENT:
                             remote_file_path = os.path.join(self.remotepath, self.root, rel_dir_of_file, file)
-                            print(f'Created file: {remote_file_path}')
+                            #print(f'Created file: {remote_file_path}')
                             self.sftp_client.put(os.path.join(root, file), remote_file_path, callback=None, confirm=True)
 
         
@@ -146,7 +146,7 @@ class ServerWorkSync(PatternMatchingEventHandler):
         super(ServerWorkSync, self).on_moved(event)
 
         what = 'directory' if event.is_directory else 'file'
-        print(f'Moved {what}: from {event.src_path} to {event.dest_path}')
+        #print(f'Moved {what}: from {event.src_path} to {event.dest_path}')
         
         try:
             self.sftp_client.posix_rename(os.path.join(self.remotepath, self.root, ''.join(event.src_path.split(self.root, 1)[1:]).strip('/')), 
@@ -159,7 +159,7 @@ class ServerWorkSync(PatternMatchingEventHandler):
         super(ServerWorkSync, self).on_created(event)
 
         what = 'directory' if event.is_directory else 'file'
-        print(f'Created {what}: {event.src_path}')
+        #print(f'Created {what}: {event.src_path}')
         
         try:
             if event.is_directory:
@@ -176,7 +176,7 @@ class ServerWorkSync(PatternMatchingEventHandler):
         super(ServerWorkSync, self).on_deleted(event)
 
         what = 'directory' if event.is_directory else 'file'
-        print(f'Deleted {what}: {event.src_path}')
+        #print(f'Deleted {what}: {event.src_path}')
         
         try:
             if event.is_directory:
@@ -191,7 +191,7 @@ class ServerWorkSync(PatternMatchingEventHandler):
         super(ServerWorkSync, self).on_modified(event)
         
         what = 'directory' if event.is_directory else 'file'
-        print(f'Modified {what}: {event.src_path}')
+        #print(f'Modified {what}: {event.src_path}')
         
         try:
             if event.is_directory:

@@ -14,3 +14,7 @@ def init_logs(logpath, servers_dict):
         stderr_data_filename = os.path.join(logpath,f"{hostname_prefix}.err" )   
         Path(stdout_data_filename).touch()
         Path(stderr_data_filename).touch()
+
+def log_observer(msg, logpath, server_name):
+    with open(os.path.abspath(os.path.join(logpath, f'{server_name}-observer.logs')), 'a') as outfile:
+        outfile.write(msg)
