@@ -61,6 +61,7 @@ def get_servers(ini_path, host_name=''):
 	else:
 		return get_server_object(host_name, servers)
 	
+
 def get_server_object(server_name, servers_ini):
 	print (f'\tConnecting with Host: {server_name}')
 	host = servers_ini[server_name]['host']
@@ -82,6 +83,7 @@ def get_server_object(server_name, servers_ini):
 	except:
 		print(f"[-] Host {server_name} is Unavailable.")
 		return 0		
+
 
 def close_all(servers):
 	for serv in servers:
