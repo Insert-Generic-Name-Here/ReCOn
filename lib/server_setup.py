@@ -12,12 +12,13 @@ def server_ini_creator(path):
     servers = info.split('/')
 
     for server in servers:
+        server = server.split(',')
         pkey_path = input(f'RSA (Private) Key Path for Server {server[1].strip()} (Default: {os.path.join(home, ".ssh", "id_rsa")}): ')
 
         if (pkey_path == ''):
             pkey_path = os.path.join(home, '.ssh', 'id_rsa')
 
-        server = server.split(',')
+        
         config[server[0]] = {'HOST'    : server[1].strip(),
                              'UNAME'   : server[2].strip(),
                              'PORT'    : server[3].strip(),
