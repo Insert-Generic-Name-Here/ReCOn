@@ -2,7 +2,7 @@ import subprocess
 import configparser
 import paramiko
 from lib.server_setup import server_ini_creator, create_dir_tree, get_path
-from lib import env_config, connections, server_logging, workspaces
+from lib import env_config, connections, workspaces, workspace_sync
 import os, time
 from pathlib import Path
 import pprint
@@ -18,7 +18,7 @@ logpath = os.path.join(local_recon_path, 'logs')
 
 ## EXPORT LOCAL RECON PATH TO SYSTEM VARIABLE (via ~/.bashrc)
 export_recon_var = f"echo 'export RECON_LOCAL_PATH={local_recon_path}' >> ~/.bashrc && . ~/.bashrc"
-subprocess.Popen(export_recon_var.split(), stdout=subprocess.PIPE)
+subprocess.Popen(export_recon_var,shell=True, stdout=subprocess.PIPE)
 
 ## INITIALIZE THE UNIVERSAL TREE STRUCTURE (FROM LIST DIRS)
 print (f'[+] Local Path: {local_recon_path}')
@@ -37,19 +37,17 @@ ini_path = os.path.join(local_recon_path, 'servers.ini')
 servers = connections.get_servers(ini_path)
 pp.pprint(servers)
 
-## INIT THE LOGGING SEQUENCE (N)
-server_logging.init_logs(logpath, servers)
 
 ## CREATE REMOTE DIRECTORY TREE (N)
 for srv in servers:
 	stdin, stdout, stderr = servers[srv]['connection'].exec_command(create_dir_tree(servers[srv]['recon_path'],dirs))
-	server_logging.log_out_err(stdout, stderr, logpath, srv)
 
 #### LAS ####
 
 #### WORKSPACES ####
 # Create workspaces ini
-workspaces.workspace_ini_creator(ini_path)
+workspace_path = workspaces.workspace_ini_creator(ini_path, local_recon_path)
+workspace_sync.sync_workspace(workspace_path, local_recon_path)
 
 ### ENVIRONMENTS ####
 
@@ -72,23 +70,24 @@ for srv in servers:
 for srv in servers:
 	stdin, stdout, stderr = servers[srv]['connection'].exec_command("tac .bashrc | grep anaconda*/bin")
 	stdout.channel.recv_exit_status()
-	server_logging.log_out_err(stdout, stderr, logpath, srv)
 	conda_dir = stdout.readlines()
-	conda_dir = conda_dir[0].split()[1].split('=')[1].strip('\'').strip('"').split(':')[0]
-	stdin, stdout, stderr = servers[srv]['connection'].exec_command(env_config.create_env(conda_dir, servers[srv]['uname'], selected_env))
-	
-	print(f'\n[+] Creating Remote Environment: {selected_env} ...')
+	print(f'\nCONDA DIIIIR FOR {srv}\n',conda_dir)
+	try:
+		conda_dir = conda_dir[0].split()[1].split('=')[1].strip('\'').strip('"').split(':')[0]
+		stdin, stdout, stderr = servers[srv]['connection'].exec_command(env_config.create_env(conda_dir, servers[srv]['uname'], selected_env))
+		
+		print(f'\n[+] Creating Remote Environment: {selected_env} ...')
 
-	for line in iter(stdout.readline, ""):
-		print(line, end="")
-	stdout.channel.recv_exit_status()
-	server_logging.log_out_err(stdout, stderr, logpath, srv)
+		for line in iter(stdout.readline, ""):
+			print(line, end="")
+		stdout.channel.recv_exit_status()
 
-	stdin, stdout, stderr = servers[srv]['connection'].exec_command(env_config.set_default_env(selected_env))
-	server_logging.log_out_err(stdout, stderr, logpath, srv)
+		stdin, stdout, stderr = servers[srv]['connection'].exec_command(env_config.set_default_env(selected_env))
 
-	print(f'[+] Created Remote Environment: {selected_env}')		
-	print('[+] Selected Environment is the Default.')
-	
+		print(f'[+] Created Remote Environment: {selected_env}')		
+		print('[+] Selected Environment is the Default.')
+	except IndexError:
+		print ('[-] Anaconda unavailable')
+
 connections.close_all(servers)
 print('[+] Setup Complete. Please Open a new Terminal.')
