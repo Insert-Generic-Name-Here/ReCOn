@@ -1,34 +1,34 @@
 import os
-import connections
 import configparser
 from pathlib import Path
 
+
 ### UPDATED ###
 def server_ini_creator(path):
-    Config = configparser.ConfigParser()
-
+    home = str(Path.home())
+    config = configparser.ConfigParser()
+    
     info = str(input('Add servers -> Nickname, Host, Username, Port, Enable-Jupyter-Forwarding(y/n) / next server...\n ex. pi, 192.168.1.1, Josh, 22, y \n'))
     servers = info.split('/')
 
-
     for server in servers:
-        pkey_path = input(f'RSA (Private) Key Path for Server {server[1].strip()} (Default: {os.path.join("/home", server[2].strip(), ".ssh", "id_rsa")}): ')
+        pkey_path = input(f'RSA (Private) Key Path for Server {server[1].strip()} (Default: {os.path.join(home, ".ssh", "id_rsa")}): ')
 
         if (pkey_path == ''):
-            pkey_path = os.path.join( '/home', server[2].strip(), '.ssh', 'id_rsa')
+            pkey_path = os.path.join(home, '.ssh', 'id_rsa')
 
         server = server.split(',')
-        Config[server[0]] = {'HOST'    : server[1].strip(),
+        config[server[0]] = {'HOST'    : server[1].strip(),
                              'UNAME'   : server[2].strip(),
                              'PORT'    : server[3].strip(),
                              'PKEY'    : pkey_path,
                              'JUPYTER' : server[4].strip()}
 
     with open(os.path.join(path,'servers.ini'), 'w+') as configfile:
-        Config.write(configfile)
-
+        config.write(configfile)
 ##############
-		
+	
+    	
 def get_path():
     home = str(Path.home())
     def_path = os.path.join(home,'.recon')
