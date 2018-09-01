@@ -47,7 +47,7 @@ for srv in servers:
 #### WORKSPACES ####
 # Create workspaces ini
 workspace_path = workspaces.workspace_ini_creator(ini_path, local_recon_path)
-workspace_sync.sync_workspace(workspace_path, local_recon_path)
+workspace_sync.synchronize(workspace_path, local_recon_path, daemon_mode=False)
 
 ### ENVIRONMENTS ####
 
@@ -71,7 +71,7 @@ for srv in servers:
 	stdin, stdout, stderr = servers[srv]['connection'].exec_command("tac .bashrc | grep anaconda*/bin")
 	stdout.channel.recv_exit_status()
 	conda_dir = stdout.readlines()
-	print(f'\nCONDA DIIIIR FOR {srv}\n',conda_dir)
+	print(f'\nConda Directory for {srv} is: {conda_dir}\n')
 	try:
 		conda_dir = conda_dir[0].split()[1].split('=')[1].strip('\'').strip('"').split(':')[0]
 		stdin, stdout, stderr = servers[srv]['connection'].exec_command(env_config.create_env(conda_dir, servers[srv]['uname'], selected_env))
@@ -89,5 +89,5 @@ for srv in servers:
 	except IndexError:
 		print ('[-] Anaconda unavailable')
 
-connections.close_all(servers)
+connections.close_connection(servers)
 print('[+] Setup Complete. Please Open a new Terminal.')

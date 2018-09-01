@@ -28,7 +28,7 @@ def close_watch_dog(observer):
     observer.stop()
 
 
-def sync_workspace(workspaces_ini_path, local_recon_path,host_name=''):
+def sync_workspace(workspaces_ini_path, local_recon_path, host_name=''):
     ssh_config = configparser.ConfigParser()
     ssh_config.read(os.path.join(local_recon_path,'servers.ini'))
 

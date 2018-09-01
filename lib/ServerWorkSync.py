@@ -6,13 +6,15 @@ import errno
 
 
 class ServerWorkSync(PatternMatchingEventHandler):
-    def __init__(self, ssh_client, localpath, remotepath, patterns=None, ignore_patterns=None, ignore_directories=False, case_sensitive=False):   
+    def __init__(self, ssh_client, localpath, remotepath, hostname='', verbose=False, patterns=None, ignore_patterns=None, ignore_directories=False, case_sensitive=False):   
         super(ServerWorkSync, self).__init__(patterns, ignore_patterns, ignore_directories, case_sensitive)    
         self.localpath = localpath
-        self.root = os.path.split(localpath)[1]
         self.remotepath = remotepath
+        self.hostname = hostname
+        self.verbose = verbose
+
+        self.root = os.path.split(localpath)[1]
         self.sftp_client = ssh_client.open_sftp()
-        
         self.__handshake()
 
 
@@ -73,7 +75,7 @@ class ServerWorkSync(PatternMatchingEventHandler):
             try:
                 self.sftp_client.stat(dir_)
             except:
-                #print (f'Created directory {dir_}')
+                if self.verbose: print (f'{"@"+self.hostname+" " if self.hostname else ""}Created directory {dir_}')
                 self.sftp_client.mkdir(dir_)
 
 
@@ -88,7 +90,7 @@ class ServerWorkSync(PatternMatchingEventHandler):
             except:
                 pass
             for file in walker[2]:
-                #print (f'\tCopying {os.path.join(walker[0],file)}...')
+                if self.verbose: print (f'\t{"@"+self.hostname+" " if self.hostname else ""}Copying {os.path.join(walker[0],file)}...')
                 self.sftp_client.put(os.path.join(walker[0],file),os.path.join(remotepath,walker[0],file)) 
         os.chdir(tmp)
     
@@ -96,7 +98,7 @@ class ServerWorkSync(PatternMatchingEventHandler):
     def __handshake(self):
         direxists = self.__directory_exists(os.path.join(self.remotepath, self.root))
         
-        print ("> Initiating Handshake. Transferring All Data to SSH Server...")
+        print (f'{"@"+self.hostname+" " if self.hostname else ""}Initiating Handshake. Transferring All Data to SSH Server...')
         if not direxists:
             self.__cwd_scp(self.localpath, self.remotepath)
         else:
@@ -110,14 +112,14 @@ class ServerWorkSync(PatternMatchingEventHandler):
                         mtime_server = self.sftp_client.stat(file).st_mtime
                         mtime_local  = os.stat(os.path.join(self.localpath, dir_of_interest, files[idx])).st_mtime
                         if (mtime_local > mtime_server):
-                            #print(f'Updated file: {file}')
+                            if self.verbose: print(f'{"@"+self.hostname+" " if self.hostname else ""}Updated file: {file}')
                             self.sftp_client.put(os.path.join(self.localpath, dir_of_interest, files[idx]), file)
                     except IOError as e:
                         if e.errno == errno.ENOENT:
-                            #print(f'Deleted file: {file}')
+                            if self.verbose: print(f'{"@"+self.hostname+" " if self.hostname else ""}Deleted file: {file}')
                             self.sftp_client.remove(file)
                             if not os.path.exists(os.path.join(self.localpath, dir_of_interest)) and len(self.sftp_client.listdir(root)) == 0:
-                                #print(f'Deleted directory: {root}')                                
+                                if self.verbose: print(f'{"@"+self.hostname+" " if self.hostname else ""}Deleted directory: {root}')                                
                                 self.sftp_client.rmdir(root)           
             
 
@@ -138,7 +140,7 @@ class ServerWorkSync(PatternMatchingEventHandler):
                     except IOError as e:
                         if e.errno == errno.ENOENT:
                             remote_file_path = os.path.join(self.remotepath, self.root, rel_dir_of_file, file)
-                            #print(f'Created file: {remote_file_path}')
+                            if self.verbose: print(f'{"@"+self.hostname+" " if self.hostname else ""}Created file: {remote_file_path}')
                             self.sftp_client.put(os.path.join(root, file), remote_file_path, callback=None, confirm=True)
 
         
@@ -146,7 +148,7 @@ class ServerWorkSync(PatternMatchingEventHandler):
         super(ServerWorkSync, self).on_moved(event)
 
         what = 'directory' if event.is_directory else 'file'
-        #print(f'Moved {what}: from {event.src_path} to {event.dest_path}')
+        if self.verbose: print(f'{"@"+self.hostname+" " if self.hostname else ""}Moved {what}: from {event.src_path} to {event.dest_path}')
         
         try:
             self.sftp_client.posix_rename(os.path.join(self.remotepath, self.root, ''.join(event.src_path.split(self.root, 1)[1:]).strip('/')), 
@@ -159,7 +161,7 @@ class ServerWorkSync(PatternMatchingEventHandler):
         super(ServerWorkSync, self).on_created(event)
 
         what = 'directory' if event.is_directory else 'file'
-        #print(f'Created {what}: {event.src_path}')
+        if self.verbose: print(f'{"@"+self.hostname+" " if self.hostname else ""}Created {what}: {event.src_path}')
         
         try:
             if event.is_directory:
@@ -176,7 +178,7 @@ class ServerWorkSync(PatternMatchingEventHandler):
         super(ServerWorkSync, self).on_deleted(event)
 
         what = 'directory' if event.is_directory else 'file'
-        #print(f'Deleted {what}: {event.src_path}')
+        if self.verbose: print(f'{"@"+self.hostname+" " if self.hostname else ""}Deleted {what}: {event.src_path}')
         
         try:
             if event.is_directory:
@@ -191,7 +193,7 @@ class ServerWorkSync(PatternMatchingEventHandler):
         super(ServerWorkSync, self).on_modified(event)
         
         what = 'directory' if event.is_directory else 'file'
-        #print(f'Modified {what}: {event.src_path}')
+        if self.verbose: print(f'{"@"+self.hostname+" " if self.hostname else ""}Modified {what}: {event.src_path}')
         
         try:
             if event.is_directory:

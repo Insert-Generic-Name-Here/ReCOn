@@ -33,18 +33,17 @@ def select_server(servers):
 	return servers[selected_server]
 
 
-
 def sftp_upload(data, dest, server):
 	print (f'\tSource Data Path: {data}')
 	print (f'\tDestination Data Path: {dest}')
-	print ('server' , server)
+	print (f'Server \'{server["uname"]}@{server["host"]}\'')
 	ssh = server['connection']
 	sftp = ssh.open_sftp()
 	sftp.put(data, dest, confirm=True)
 	file_name = dest[dest.rfind('/')+1:]
 	files_in_dir = sftp.listdir(dest[:dest.rfind('/')+1])
 	if file_name in files_in_dir:
-		print (f'[+] SFTP for file "{file_name}" on server "{server}" successful')
+		print (f'[+] SFTP for file \'{file_name}\' on \'{server["uname"]}@{server["host"]}\' successful')
 	else:
 		print('[-] SFTP transfer failed')
 	sftp.close()
@@ -85,7 +84,13 @@ def get_server_object(server_name, servers_ini):
 		return 0		
 
 
-def close_all(servers):
-	for serv in servers:
-		servers[serv]['connection'].close()
-	print ('[+] All Connections Closed.')	
+def close_connection(servers, host_name=''):
+	if (host_name):
+		print (f'\t[+] Closing the SSH Connection for {host_name} ...')
+		servers[host_name]['connection'].close()
+		print (f'[+] Connection to {host_name} Closed.')
+	else:
+		print (f'\t[+] Closing the SSH Connection for All Servers ...')
+		for serv in servers:
+			servers[serv]['connection'].close()
+		print ('[+] All Connections Closed.')
