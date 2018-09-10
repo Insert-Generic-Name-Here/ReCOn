@@ -4,6 +4,18 @@ import paramiko
 import threading
 import configparser
 
+def interactive_ssh(server_name):
+	servers = configparser.ConfigParser()
+	servers.read('servers.ini')
+
+	usrn = servers[server_name]['uname']
+	host = servers[server_name]['host']
+	key = servers[server_name]['pkey']
+	port = servers[server_name]['port']
+
+
+	os.system(f'ssh -i {key} -p {port} {usrn}@{host}')
+
 def select_server(servers):
 	opts = [host for host in servers.sections()]
 
