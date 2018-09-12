@@ -3,10 +3,10 @@ import configparser
 from lib.connections import *
 
 
-def workspace_ini_creator(servers_path, local_recon_path):
+def workspace_ini_creator(config_path):
     Config = configparser.ConfigParser()
     servers = configparser.ConfigParser()
-    servers.read(servers_path)
+    servers.read(os.path.join(config_path,'servers.ini'))
     srv = select_server(servers)
 
     print (f'[+] Configuring workspaces for {srv.name}')
@@ -27,6 +27,6 @@ def workspace_ini_creator(servers_path, local_recon_path):
 
 
     Config[srv.name] = {w_name: w_path}
-    with open(os.path.join(local_recon_path,'workspaces.ini'), 'w+') as configfile:
+    with open(os.path.join(config_path,'workspaces.ini'), 'w+') as configfile:
         Config.write(configfile)
-    return os.path.join(local_recon_path,'workspaces.ini')
+    return os.path.join(config_path,'workspaces.ini')

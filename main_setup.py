@@ -6,9 +6,16 @@ from lib import env_config, connections, workspaces, workspace_sync
 import os, time
 from pathlib import Path
 import pprint
-
+import platform
+from distutils.dir_util import copy_tree
+from shutil import copy
 
 pp = pprint.PrettyPrinter(indent=4)
+
+#### IF YOU RUN ON MAC , ADD BASHRC TO .profile ###
+
+if platform.system() == 'Darwin':
+	subprocess.Popen("echo 'source ~/.bashrc' >> ~/.profile && . ~/.profile",shell=True, stdout=subprocess.PIPE)
 
 #### TREES AND LOGGING ####
 
@@ -17,16 +24,28 @@ local_recon_path = get_path()
 logpath = os.path.join(local_recon_path, 'logs')
 
 ## EXPORT LOCAL RECON PATH TO SYSTEM VARIABLE (via ~/.bashrc)
+##### q ####
 export_recon_var = f"echo 'export RECON_LOCAL_PATH={local_recon_path}' >> ~/.bashrc && . ~/.bashrc"
 subprocess.Popen(export_recon_var,shell=True, stdout=subprocess.PIPE)
+
+
 
 ## INITIALIZE THE UNIVERSAL TREE STRUCTURE (FROM LIST DIRS)
 print (f'[+] Local Path: {local_recon_path}')
 dirs = ['envs', 'config', 'lib', 'logs']
 
-## CREATE LOCAL DIRECTORY TREE
+## CREATE LOCAL DIRECTORY TREE AND APPEND IT TO PATH
 subprocess.Popen(create_dir_tree(local_recon_path, dirs).split(), stdout=subprocess.PIPE)
+subprocess.Popen(f"echo 'export PATH={local_recon_path}:$PATH' >> ~/.bashrc && . ~/.bashrc",shell=True, stdout=subprocess.PIPE)
 print ('[+] Created Local Tree.')
+
+## Transfer scripts and lib to recon path ##
+
+copy_tree("lib",f"{local_recon_path}/lib")
+copy("las",f"{local_recon_path}")
+copy("flas",f"{local_recon_path}")
+
+print ('[+] Local file transfering complete.')
 
 ## CREATE THE INI FILE THAT CONTAINS INFO ABOUT THE SERVERS
 server_ini_creator(local_recon_path)
@@ -37,17 +56,21 @@ ini_path = os.path.join(local_recon_path, 'servers.ini')
 servers = connections.get_servers(ini_path)
 pp.pprint(servers)
 
-
 ## CREATE REMOTE DIRECTORY TREE (N)
 for srv in servers:
 	stdin, stdout, stderr = servers[srv]['connection'].exec_command(create_dir_tree(servers[srv]['recon_path'],dirs))
-
-#### LAS ####
+print ('[+] Created Remote Tree.')
 
 #### WORKSPACES ####
 # Create workspaces ini
-workspace_path = workspaces.workspace_ini_creator(ini_path, local_recon_path)
+
+### TODO - add tab autocomplete
+config_path = os.path.join(local_recon_path,'config')
+workspace_path = workspaces.workspace_ini_creator(config_path)
+
+##TODO - fix paths to new tree structure
 workspace_sync.synchronize(workspace_path, local_recon_path, daemon_mode=False)
+print ('[+] Created workspaces ini.')
 
 ### ENVIRONMENTS ####
 

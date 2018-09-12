@@ -25,7 +25,7 @@ def server_ini_creator(path):
                              'PKEY'    : pkey_path,
                              'JUPYTER' : server[4].strip()}
 
-    with open(os.path.join(path,'servers.ini'), 'w+') as configfile:
+    with open(os.path.join(path,'config','servers.ini'), 'w+') as configfile:
         config.write(configfile)
 ##############
 	

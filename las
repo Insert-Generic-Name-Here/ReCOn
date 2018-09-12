@@ -2,18 +2,20 @@
 
 ## Lick (the timestamp) And Send it --> LAS
 
-import sys
+import sys, os
 import configparser
 import paramiko 
 import argparse
 from setuptools import find_packages
 from lib import connections
 
+recon_path = os.path.dirname(os.path.abspath(__file__))
+
 servers = configparser.ConfigParser()
-servers.read('servers.ini')
+servers.read(os.path.join(recon_path,'config/servers.ini'))
 
 workspaces = configparser.ConfigParser()
-workspaces.read('workspaces.ini')
+workspaces.read(os.path.join(recon_path,'configs/workspaces.ini'))
 
 server_parser = argparse.ArgumentParser(add_help=False)
 server_parser.add_argument('--server','-s',dest='server_name',nargs='?',choices=servers.sections(), help='Pick a server from the available ones',metavar='SERVER_NAME')
