@@ -1,13 +1,19 @@
 import os
 import configparser
+import readline
 from lib.connections import *
-
+from lib.autocompete import *
 
 def workspace_ini_creator(config_path):
     Config = configparser.ConfigParser()
     servers = configparser.ConfigParser()
     servers.read(os.path.join(config_path,'servers.ini'))
     srv = select_server(servers)
+
+    autocomplete_input_path = AutoCompete()
+    readline.set_completer_delims('\t')
+    readline.parse_and_bind("tab: complete")
+    readline.set_completer(autocomplete_input_path.pathCompleter)
 
     print (f'[+] Configuring workspaces for {srv.name}')
     while(1):

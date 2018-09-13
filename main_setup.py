@@ -13,22 +13,15 @@ from shutil import copy
 pp = pprint.PrettyPrinter(indent=4)
 
 #### IF YOU RUN ON MAC , ADD BASHRC TO .profile ###
-
 if platform.system() == 'Darwin':
 	subprocess.Popen("echo 'source ~/.bashrc' >> ~/.profile && . ~/.profile",shell=True, stdout=subprocess.PIPE)
 
-#### TREES AND LOGGING ####
 
+#### TREES AND LOGGING ####
 ## GET THE LOCAL /.RECON PATH AND INITIALIZE LOGS
 local_recon_path = get_path()
+config_path = os.path.join(local_recon_path,'config')
 logpath = os.path.join(local_recon_path, 'logs')
-
-## EXPORT LOCAL RECON PATH TO SYSTEM VARIABLE (via ~/.bashrc)
-##### q ####
-export_recon_var = f"echo 'export RECON_LOCAL_PATH={local_recon_path}' >> ~/.bashrc && . ~/.bashrc"
-subprocess.Popen(export_recon_var,shell=True, stdout=subprocess.PIPE)
-
-
 
 ## INITIALIZE THE UNIVERSAL TREE STRUCTURE (FROM LIST DIRS)
 print (f'[+] Local Path: {local_recon_path}')
@@ -40,7 +33,6 @@ subprocess.Popen(f"echo 'export PATH={local_recon_path}:$PATH' >> ~/.bashrc && .
 print ('[+] Created Local Tree.')
 
 ## Transfer scripts and lib to recon path ##
-
 copy_tree("lib",f"{local_recon_path}/lib")
 copy("las",f"{local_recon_path}")
 copy("flas",f"{local_recon_path}")
@@ -50,7 +42,7 @@ print ('[+] Local file transfering complete.')
 ## CREATE THE INI FILE THAT CONTAINS INFO ABOUT THE SERVERS
 server_ini_creator(local_recon_path)
 print ('[+] Created Configuration ini')
-ini_path = os.path.join(local_recon_path, 'servers.ini')
+ini_path = os.path.join(config_path, 'servers.ini')
 
 ## GET SERVER OBJECTS (N)
 servers = connections.get_servers(ini_path)
@@ -63,17 +55,11 @@ print ('[+] Created Remote Tree.')
 
 #### WORKSPACES ####
 # Create workspaces ini
-
-### TODO - add tab autocomplete
-config_path = os.path.join(local_recon_path,'config')
 workspace_path = workspaces.workspace_ini_creator(config_path)
-
-##TODO - fix paths to new tree structure
-workspace_sync.synchronize(workspace_path, local_recon_path, daemon_mode=False)
+workspace_sync.synchronize(workspace_path, os.path.join(local_recon_path,config_path), daemon_mode=False)
 print ('[+] Created workspaces ini.')
 
 ### ENVIRONMENTS ####
-
 ## SELECT THE CONDA ENV THAT WILL BE REPLICATED ON THE SERVERS 
 selected_env = env_config.select_env()
 print (f'[+] Environment Selected: {selected_env}')
