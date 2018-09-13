@@ -4,17 +4,24 @@ import paramiko
 import threading
 import configparser
 
-def interactive_ssh(server_name):
+def interactive_ssh(config_path, server_name):
 	servers = configparser.ConfigParser()
-	servers.read('servers.ini')
+	servers.read(os.path.join(config_path,'servers.ini'))
 
 	usrn = servers[server_name]['uname']
 	host = servers[server_name]['host']
 	key = servers[server_name]['pkey']
 	port = servers[server_name]['port']
 
+	try:
+		retcode = subprocess.call(f'ssh -i {key} -p {port} {usrn}@{host}', shell=True)
+		if retcode < 0:
+			print (sys.stderr, "\nSSH Shell was terminated by signal", -retcode)
+		else:
+			print (sys.stderr, "\nSSH Shell returned", retcode)
+	except OSError as e:
+		print (sys.stderr, "\nSSH Interactive Shell creation failed:", e)
 
-	os.system(f'ssh -i {key} -p {port} {usrn}@{host}')
 
 def select_server(servers):
 	opts = [host for host in servers.sections()]

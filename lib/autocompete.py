@@ -3,7 +3,7 @@ import sys
 import readline
 import glob
 
-def pathCompleter(self,text,state):
+def pathCompleter(text,state):
     line = readline.get_line_buffer().split()
     
     if '~' in text:

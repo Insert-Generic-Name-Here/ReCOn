@@ -15,7 +15,7 @@ servers = configparser.ConfigParser()
 servers.read(os.path.join(recon_path,'config/servers.ini'))
 
 workspaces = configparser.ConfigParser()
-workspaces.read(os.path.join(recon_path,'configs/workspaces.ini'))
+workspaces.read(os.path.join(recon_path,'config/workspaces.ini'))
 
 server_parser = argparse.ArgumentParser(add_help=False)
 server_parser.add_argument('--server','-s',dest='server_name',nargs='?',choices=servers.sections(), help='Pick a server from the available ones',metavar='SERVER_NAME')
