@@ -9,6 +9,7 @@ import pprint
 import platform
 from distutils.dir_util import copy_tree
 from shutil import copy
+import json
 
 pp = pprint.PrettyPrinter(indent=4)
 
@@ -83,13 +84,25 @@ for srv in servers:
 	print(f'\nConda Directory for {srv} is: {conda_dir}\n')
 	try:
 		conda_dir = conda_dir[0].split()[1].split('=')[1].strip('\'').strip('"').split(':')[0]
-		stdin, stdout, stderr = servers[srv]['connection'].exec_command(env_config.create_env(conda_dir, servers[srv]['uname'], selected_env))
-		
-		print(f'\n[+] Creating Remote Environment: {selected_env} ...')
+		while 1:
+			stdin, stdout, stderr = servers[srv]['connection'].exec_command(env_config.create_env(conda_dir, servers[srv]['uname'], selected_env))
+			
+			print(f'\n[+] Creating Remote Environment: {selected_env} ...')
 
-		for line in iter(stdout.readline, ""):
-			print(line, end="")
-		stdout.channel.recv_exit_status()
+			for line in iter(stdout.readline, ""):
+				print(line, end="")
+			if not stderr.readlines() :
+				stdout.channel.recv_exit_status()
+				break
+			else:
+				print('\n[-] Found Incompatible Packages... Fixing')
+				error = json.loads(''.join(stderr.readlines()))
+				env_config.purge_deps(local_env_file_path,error['bad_deps'])
+				target_file = f"{servers[srv]['recon_path']}/envs/{selected_env}_envfile.yml"
+				connections.sftp_upload(local_env_file_path, target_file, servers[srv])
+				print('\n[+] Fix Complete')
+
+
 
 		stdin, stdout, stderr = servers[srv]['connection'].exec_command(env_config.set_default_env(selected_env))
 

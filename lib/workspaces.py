@@ -10,10 +10,9 @@ def workspace_ini_creator(config_path):
     servers.read(os.path.join(config_path,'servers.ini'))
     srv = select_server(servers)
 
-    autocomplete_input_path = AutoCompete()
     readline.set_completer_delims('\t')
     readline.parse_and_bind("tab: complete")
-    readline.set_completer(autocomplete_input_path.pathCompleter)
+    readline.set_completer(pathCompleter)
 
     print (f'[+] Configuring workspaces for {srv.name}')
     while(1):
