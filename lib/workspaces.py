@@ -2,7 +2,7 @@ import os
 import configparser
 import readline
 from lib.connections import *
-from lib.autocompete import *
+from lib.autocomplete import *
 
 def workspace_ini_creator(config_path):
     Config = configparser.ConfigParser()

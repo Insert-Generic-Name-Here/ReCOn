@@ -1,6 +1,8 @@
 import os
+import readline
 import configparser
 from pathlib import Path
+from lib.autocomplete import *
 
 
 ### UPDATED ###
@@ -10,6 +12,10 @@ def server_ini_creator(path):
     
     info = str(input('Add servers -> Nickname, Host, Username, Port, Enable-Jupyter-Forwarding(y/n) / next server...\n ex. pi, 192.168.1.1, Josh, 22, y \n'))
     servers = info.split('/')
+
+    readline.set_completer_delims('\t')
+    readline.parse_and_bind("tab: complete")
+    readline.set_completer(pathCompleter)
 
     for server in servers:
         server = server.split(',')
@@ -31,6 +37,10 @@ def server_ini_creator(path):
 	
     	
 def get_path():
+    readline.set_completer_delims('\t')
+    readline.parse_and_bind("tab: complete")
+    readline.set_completer(pathCompleter)
+
     home = str(Path.home())
     def_path = os.path.join(home,'.recon')
     while True:

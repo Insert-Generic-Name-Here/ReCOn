@@ -20,3 +20,5 @@ lib/utilities/ssh_config\.ini
 lib/ssh_config\.ini
 
 *.ini
+
+las-cli/
