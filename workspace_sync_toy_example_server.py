@@ -19,7 +19,7 @@ from time import gmtime, strftime, sleep
 
 if __name__ == '__main__':
     ssh_config = configparser.ConfigParser()
-    ssh_config.read('servers.ini')
+    ssh_config.read(os.path.join('servers.ini'))
     # ssh_config.read(os.path.join('lib', 'utilities','ssh_config.ini'))
     ssh_config = select_server(ssh_config)
 
@@ -36,8 +36,8 @@ if __name__ == '__main__':
 
     # Initiating the Client and Server paths 
     ## Get The HOME Directory of the SSH Server
-    stdin, stdout, stderr = curr_server['connection'].exec_command("echo $HOME")
-    ssh_server_home_dir = stdout.readlines()[0].split('\n')[0]
+    #stdin, stdout, stderr = curr_server['connection'].exec_command("echo $HOME")
+    ssh_server_home_dir = '/home/andretri7/Documents/Insert-Generic-Name-Here/'
     # ssh_server_home_dir
 
     ## Get the Workspace Directory of SSH Client 
