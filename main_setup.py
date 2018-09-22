@@ -89,14 +89,12 @@ for srv in servers:
 			
 			print(f'\n[+] Creating Remote Environment: {selected_env} ...')
 
-			for line in iter(stdout.readline, ""):
-				print(line, end="")
-			if not stderr.readlines() :
+			if not json.loads(''.join(stdout.readlines()))['error']:
 				stdout.channel.recv_exit_status()
 				break
 			else:
 				print('\n[-] Found Incompatible Packages... Fixing')
-				error = json.loads(''.join(stderr.readlines()))
+				error = json.loads(''.join(stdout.readlines()))
 				env_config.purge_deps(local_env_file_path,error['bad_deps'])
 				target_file = f"{servers[srv]['recon_path']}/envs/{selected_env}_envfile.yml"
 				connections.sftp_upload(local_env_file_path, target_file, servers[srv])

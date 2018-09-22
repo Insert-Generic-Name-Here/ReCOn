@@ -14,9 +14,9 @@ def workspace_ini_creator(config_path):
     readline.parse_and_bind("tab: complete")
     readline.set_completer(pathCompleter)
 
-    print (f'[+] Configuring workspaces for {srv.name}')
+    print (f'[+] Configuring workspace for {srv.name}')
     while(1):
-        info = str(input('Add Workspace:Name (Default name -> dir name)\n ex. /home/ReCon : ReCon workspace\n '))
+        info = str(input('Add dir to Workspace (Default name = dir name)\n ex. /home/ReCon : ReConWs\n '))
 
         workspace = [arg.strip() for arg in info.split(':') ]
         if len(workspace)==1:

@@ -5,7 +5,7 @@ from lib import connections
 
 
 def create_env(conda_dir, uname, selected_env):
-	return f'{conda_dir}/conda env create -n {selected_env} -f /home/{uname}/.recon/envs/{selected_env}_envfile.yml'
+	return f'{conda_dir}/conda env create -n {selected_env} -f /home/{uname}/.recon/envs/{selected_env}_envfile.yml --json'
 
 def set_default_env(envname):
 	return f"echo 'source activate {envname}' >> ~/.bashrc && . ~/.bashrc"

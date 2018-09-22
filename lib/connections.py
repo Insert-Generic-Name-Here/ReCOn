@@ -4,9 +4,7 @@ import paramiko
 import threading
 import configparser
 
-def interactive_ssh(config_path, server_name):
-	servers = configparser.ConfigParser()
-	servers.read(os.path.join(config_path,'servers.ini'))
+def interactive_ssh(servers, server_name):
 
 	usrn = servers[server_name]['uname']
 	host = servers[server_name]['host']
