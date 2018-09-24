@@ -1,23 +1,44 @@
+'''
+Version 2.0 - Now \w Journals
+'''
 from watchdog.events import PatternMatchingEventHandler
 from colorama import Fore, Style
 from lib.rfilecmp import cmp
+import stat,csv,time
+import pandas as pd
 import paramiko
 import os,errno
-# from lib.server_logging import log_observer
+
+
+# TODO #1: What to do when the Connection is dropped?
+# TODO #2: Algorithm to attempt reconnection 
+'''(Hint: Check threading -> Attempt to connect (required data on ssh_client_dict) every X seconds)'''
+# TODO #3: Implement a startup script to invoke ServerWorkSync for each workspace @workspaces.ini
+'''(Hint: Check the workspace_sync_toy_example.py and generalize its behavior for each workspace'''
+# TODO #4: Implement the back-and-forth sync automatically (without executing two separate scripts)
 
 
 class ServerWorkSync(PatternMatchingEventHandler):
-    def __init__(self, ssh_client, localpath, remotepath, hostname='', verbose=False, shallow_filecmp=True, patterns=None, ignore_patterns=None, ignore_directories=False, case_sensitive=False):   
+    def __init__(self, ssh_client_dict, localpath, remotepath, hostname='', autosync=False, verbose=False, shallow_filecmp=True,\
+                 patterns=None, ignore_patterns=None, ignore_directories=False, case_sensitive=False):   
         super(ServerWorkSync, self).__init__(patterns, ignore_patterns, ignore_directories, case_sensitive)    
         self.localpath = localpath
         self.remotepath = remotepath
         self.hostname = hostname
+        self.autosync = autosync
         self.verbose = verbose
         self.shallow_filecmp = shallow_filecmp
-
         self.root = os.path.split(localpath)[1]
-        self.sftp_client = ssh_client.open_sftp()
+
+        self.ssh_client_dict = ssh_client_dict
+        self.sftp_client = ssh_client_dict['connection'].open_sftp()
+        
+        self.journal_path = os.path.join('..', 'logs', 'journal.csv')
+        if not os.path.exists(self.journal_path):
+            self.__journal(mode='h', data=['timestamp' ,'event' , 'src', 'dest'])
+
         self.__handshake()
+
 
     def __colorize(self, msg, color):
         ''' (on_moved):     Blue
@@ -34,8 +55,8 @@ class ServerWorkSync(PatternMatchingEventHandler):
         elif color is 'y':
             return f'{Style.BRIGHT}{Fore.YELLOW}{msg}{Style.RESET_ALL}'
 
+
     def __remote_os_walk(self, root):
-        import stat
         files = []
         dirs = []
         
@@ -109,88 +130,119 @@ class ServerWorkSync(PatternMatchingEventHandler):
                 if self.verbose: print (f'\t{"@"+self.hostname+" " if self.hostname else ""}{self.__colorize("Copying", "g")} {os.path.join(walker[0],file)}...')
                 self.sftp_client.put(os.path.join(walker[0],file),os.path.join(remotepath,walker[0],file)) 
         os.chdir(tmp)
-    
-    
+
+
+    def __filter_journals(self):
+        with self.sftp_client.open(os.path.join(self.ssh_client_dict['recon_path'], 'logs', 'journal.csv'), 'r') as f:
+            remote_journal = pd.read_csv(f, index_col=[0])
+            remote_journal.iloc[0:0].to_csv(f)
+        local_journal  = pd.read_csv(os.path.join(os.path.expanduser('~'), '.recon', 'logs', 'journal.csv'), index_col=[0])
+
+        fn = pd.concat([remote_journal,local_journal], ignore_index=True)
+
+        fn['rel'] = fn['src'].apply(lambda path: ''.join(path.split(self.root, 1)[1:]).strip('/'))
+        exp = fn.loc[fn.groupby(['rel']).timestamp.idxmax()]
+
+        with self.sftp_client.open(os.path.join(self.ssh_client_dict['recon_path'], 'logs', 'journal.csv'), 'w+') as f:
+            remote_journal.iloc[0:0].to_csv(f)
+
+        local_journal.iloc[0:0].to_csv(os.path.join(os.path.expanduser('~'), '.recon', 'logs', 'journal.csv'))
+        return exp.drop(['rel'], axis=1)
+
+
+    def __journal(self, mode='r', data=None):
+        if mode is 'r':
+            journal = self.__filter_journals()
+            for row in journal.iterrows():
+                yield row[1]
+                    
+        if mode is 'w':
+            with open(self.journal_path, mode=mode) as f:
+                writer = csv.writer(f)
+                writer.writerows(data)
+
+        if mode is 'h':
+            with open(self.journal_path, mode='w') as f:
+                writer = csv.writer(f)
+                writer.writeheader(data)
+
+
     def __handshake(self):
         direxists = self.__directory_exists(os.path.join(self.remotepath, self.root))
+        print (f'{"@"+self.hostname+" " if self.hostname else ""}Initiating Handshake. Updating Remote Server Files...\n')
         
-        print (f'{"@"+self.hostname+" " if self.hostname else ""}Initiating Handshake. Transferring All Data to SSH Server...\n')
+        ''' If the Directory does not Exist (First-Time Syncing) Create the whole Directory Tree '''
         if not direxists:
             self.__cwd_scp(self.localpath, self.remotepath)
         else:
-            ''' Update the old Files; Delete the files (and Directories) that don't exist on client '''
-            for root, _, files in self.__remote_os_walk(os.path.join(self.remotepath, self.root)):
-                dir_of_interest = ''.join(root.split(self.root, 1)[1:]).strip('/')
-                server_files = [os.path.join(root, file) for file in files]
-
-                for idx, file in enumerate(server_files):
-                    try:
-                        src_path = os.path.join(self.localpath, dir_of_interest, files[idx])
-                        # mtime_server = self.sftp_client.stat(file).st_mtime
-                        # mtime_local  = os.stat(os.path.join(self.localpath, dir_of_interest, files[idx])).st_mtime
-                        
-                        # if (mtime_local > mtime_server):
-                        if not cmp(src_path, file, self.sftp_client, shallow=self.shallow_filecmp):
-                            if self.verbose: print(f'{"@"+self.hostname+" " if self.hostname else ""}{self.__colorize("Updated", "y")}  file: {file}')
-                            self.sftp_client.put(os.path.join(self.localpath, dir_of_interest, files[idx]), file)
-                    except IOError as e:
-                        if e.errno == errno.ENOENT:
-                            if self.verbose: print(f'{"@"+self.hostname+" " if self.hostname else ""}{self.__colorize("Deleted", "r")}  file: {file}')
-                            self.sftp_client.remove(file)
-                            if not os.path.exists(os.path.join(self.localpath, dir_of_interest)) and len(self.sftp_client.listdir(root)) == 0:
-                                if self.verbose: print(f'{"@"+self.hostname+" " if self.hostname else ""}{self.__colorize("Deleted", "r")}  directory: {root}')                                
-                                self.sftp_client.rmdir(root)           
+            ''' Read the Journal and Update the Necessary Files '''
+            for activity in self.__journal():
+                # activity : ['timestamp' ,'event' , 'src', 'dest']
+                src_path = activity[2]
+                if activity[1] == 'moved':
+                    dest_path = activity[3]
+                    self.sftp_client.posix_rename(os.path.join(self.remotepath, self.root, ''.join(src_path.split(self.root, 1)[1:]).strip('/')), 
+                                                  os.path.join(self.remotepath, self.root, ''.join(dest_path.split(self.root, 1)[1:]).strip('/')))
+                elif activity[1] == 'created':
+                    dest_path = os.path.join(self.remotepath, self.root, ''.join(src_path.split(self.root, 1)[1:]).strip('/'))
+                    if os.path.isdir(src_path):
+                        self.sftp_client.mkdir(dest_path)
+                    else:
+                        self.sftp_client.put(src_path, dest_path, callback=None, confirm=True)
+                elif activity[1] == 'deleted':
+                    dest_path = os.path.join(self.remotepath, self.root, ''.join(src_path.split(self.root, 1)[1:]).strip('/'))
+                    if os.path.isdir(src_path):
+                        self.sftp_client.rmdir(dest_path)  
+                    else:
+                        self.sftp_client.remove(dest_path)  
+                elif activity[1] == 'modified':
+                    dest_path = os.path.join(self.remotepath, self.root, ''.join(src_path.split(self.root, 1)[1:]).strip('/'))
+                    if os.path.isdir(src_path):
+                        pass
+                    else:
+                        if not cmp(src_path, dest_path, self.sftp_client, shallow=self.shallow_filecmp):
+                            self.sftp_client.put(src_path, dest_path, callback=None, confirm=True)
             
-
-            ''' Copy the new Files (and Directories) from the Client to the Server Workspace '''
-            for root, _, files in os.walk(os.path.abspath(self.localpath)):
-                rel_dir_of_file = ''.join(root.split(self.root, 1)[1:]).strip('/')
-                dir_of_interest = os.path.join(self.remotepath, self.root, rel_dir_of_file)
-                
-                try:
-                    self.sftp_client.stat(dir_of_interest)
-                except IOError as e:
-                    if e.errno == errno.ENOENT: 
-                        self.mkdir_p(dir_of_interest, is_dir=True)
-                        
-                for file in files:
-                    try:
-                        self.sftp_client.stat(os.path.join(self.remotepath, self.root, rel_dir_of_file, file))
-                    except IOError as e:
-                        if e.errno == errno.ENOENT:
-                            remote_file_path = os.path.join(self.remotepath, self.root, rel_dir_of_file, file)
-                            if self.verbose: print(f'{"@"+self.hostname+" " if self.hostname else ""}{self.__colorize("Created", "g")}  file: {remote_file_path}')
-                            self.sftp_client.put(os.path.join(root, file), remote_file_path, callback=None, confirm=True)
-
-        
+    
     def on_moved(self, event):
         super(ServerWorkSync, self).on_moved(event)
+        timestamp = int(time.time())
 
         what = 'directory' if event.is_directory else 'file'
         if self.verbose: print(f'{"@"+self.hostname+" " if self.hostname else ""}{self.__colorize("Moved", "b")} {what}: from {event.src_path} to {event.dest_path}')
         
         try:
-            self.sftp_client.posix_rename(os.path.join(self.remotepath, self.root, ''.join(event.src_path.split(self.root, 1)[1:]).strip('/')), 
-                                          os.path.join(self.remotepath, self.root, ''.join(event.dest_path.split(self.root, 1)[1:]).strip('/')))
+            if self.autosync:
+                self.sftp_client.posix_rename(os.path.join(self.remotepath, self.root, ''.join(event.src_path.split(self.root, 1)[1:]).strip('/')), 
+                                            os.path.join(self.remotepath, self.root, ''.join(event.dest_path.split(self.root, 1)[1:]).strip('/')))
+            else:
+                rec = [timestamp, 'moved', event.src_path, event.dest_path]
+                self.__journal(mode='w', data=rec)
+
         except FileNotFoundError:
             if self.verbose: print(f'{"@"+self.hostname+" " if self.hostname else ""}{what}: {event.src_path} does not Exist!')
         except IOError:
             if self.verbose: print(f'{"@"+self.hostname+" " if self.hostname else ""}{what}: {event.src_path} is Already Moved!')
-    
+        
     
     def on_created(self, event):
         super(ServerWorkSync, self).on_created(event)
+        timestamp = int(time.time())
 
         what = 'directory' if event.is_directory else 'file'
         if self.verbose: print(f'{"@"+self.hostname+" " if self.hostname else ""}{self.__colorize("Created", "g")} {what}: {event.src_path}')
         
-        dest_path = os.path.join(self.remotepath, self.root, ''.join(event.src_path.split(self.root, 1)[1:]).strip('/'))
-
         try:
-            if event.is_directory:
-                self.sftp_client.mkdir(dest_path)
+            if self.autosync:
+                dest_path = os.path.join(self.remotepath, self.root, ''.join(event.src_path.split(self.root, 1)[1:]).strip('/'))
+                if event.is_directory:
+                    self.sftp_client.mkdir(dest_path)
+                else:
+                    self.sftp_client.put(event.src_path, dest_path, callback=None, confirm=True)
             else:
-                self.sftp_client.put(event.src_path, dest_path, callback=None, confirm=True)
+                rec = [timestamp, 'created', event.src_path, '']
+                self.__journal(mode='w', data=rec)
+
         except FileNotFoundError:
             if self.verbose: print(f'{"@"+self.hostname+" " if self.hostname else ""}{what}: {event.src_path} does not Exist!')
         except IOError:
@@ -200,17 +252,22 @@ class ServerWorkSync(PatternMatchingEventHandler):
         
     def on_deleted(self, event):
         super(ServerWorkSync, self).on_deleted(event)
+        timestamp = int(time.time())
 
         what = 'directory' if event.is_directory else 'file'
         if self.verbose: print(f'{"@"+self.hostname+" " if self.hostname else ""}{self.__colorize("Deleted", "r")} {what}: {event.src_path}')
         
-        dest_path = os.path.join(self.remotepath, self.root, ''.join(event.src_path.split(self.root, 1)[1:]).strip('/'))
-
         try:
-            if event.is_directory:
-                self.sftp_client.rmdir(dest_path)  
+            if self.autosync:
+                dest_path = os.path.join(self.remotepath, self.root, ''.join(event.src_path.split(self.root, 1)[1:]).strip('/'))
+                if event.is_directory:
+                    self.sftp_client.rmdir(dest_path)  
+                else:
+                    self.sftp_client.remove(dest_path)  
             else:
-                self.sftp_client.remove(dest_path)  
+                rec = [timestamp, 'deleted', event.src_path, '']
+                self.__journal(mode='w', data=rec)
+
         except FileNotFoundError:
             pass
         except IOError:
@@ -219,20 +276,25 @@ class ServerWorkSync(PatternMatchingEventHandler):
         
     def on_modified(self, event):
         super(ServerWorkSync, self).on_modified(event)
+        timestamp = int(time.time())
         
         what = 'directory' if event.is_directory else 'file'
         if self.verbose: print(f'{"@"+self.hostname+" " if self.hostname else ""}{self.__colorize("Modified", "y")} {what}: {event.src_path}')
-        
-        dest_path = os.path.join(self.remotepath, self.root, ''.join(event.src_path.split(self.root, 1)[1:]).strip('/'))
 
         try:
-            if event.is_directory:
-                # NOTE: idk if this event is useful for directories, so i'll leave it for future use.
-                pass
-            else:
-                if not cmp(event.src_path, dest_path, self.sftp_client, shallow=self.shallow_filecmp):
-                    self.sftp_client.put(event.src_path, dest_path, callback=None, confirm=True)
+            if self.autosync:
+                dest_path = os.path.join(self.remotepath, self.root, ''.join(event.src_path.split(self.root, 1)[1:]).strip('/'))
+                if event.is_directory:
+                    # NOTE: idk if this event is useful for directories, so i'll leave it for future use.
+                    pass
                 else:
-                    if self.verbose: print(f'{"@"+self.hostname+" " if self.hostname else ""}{what}: {event.src_path} is the Same (No need for Upload)!')
+                    if not cmp(event.src_path, dest_path, self.sftp_client, shallow=self.shallow_filecmp):
+                        self.sftp_client.put(event.src_path, dest_path, callback=None, confirm=True)
+                    else:
+                        if self.verbose: print(f'{"@"+self.hostname+" " if self.hostname else ""}{what}: {event.src_path} is the Same (No need for Upload)!')
+            else:
+                rec = [timestamp, 'modified', event.src_path, '']
+                self.__journal(mode='w', data=rec)
+
         except FileNotFoundError:
             if self.verbose: print(f'{"@"+self.hostname+" " if self.hostname else ""}{what}: {event.src_path} does not Exist!')
