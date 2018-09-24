@@ -1,7 +1,7 @@
 import subprocess
 import configparser
 import paramiko
-from lib.server_setup import create_dir_tree, get_path
+from lib.server_setup import create_dir_tree
 from lib import env_config, connections, workspace_sync, ini_lib
 import os, time
 from pathlib import Path
@@ -20,7 +20,7 @@ if platform.system() == 'Darwin':
 
 #### TREES AND LOGGING ####
 ## GET THE LOCAL /.RECON PATH AND INITIALIZE LOGS
-local_recon_path = get_path()
+local_recon_path = os.path.join(os.path.expanduser('~'), '.recon')
 config_path = os.path.join(local_recon_path,'config')
 logpath = os.path.join(local_recon_path, 'logs')
 

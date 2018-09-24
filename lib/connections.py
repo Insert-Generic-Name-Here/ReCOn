@@ -84,6 +84,7 @@ def get_server_object(server_name, servers_ini):
 	uname = servers_ini[server_name]['uname']
 	port = servers_ini[server_name]['port']
 	pkey = servers_ini[server_name]['pkey']
+	recon_path = servers_ini[server_name]['recon_path']
 
 	ssh = paramiko.SSHClient()
 	ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -94,7 +95,7 @@ def get_server_object(server_name, servers_ini):
 		print (f'[+] Success for host: {server_name}')
 		curr_server = {}
 		curr_server = {'connection':ssh, 'host':host, 'uname':uname, 'port':port, 
-					   'pkey':pkey, 'recon_path': os.path.join('/home',uname,'.recon')}
+					   'pkey':pkey, 'recon_path': recon_path}
 		return curr_server
 	except:
 		print(f"[-] Host {server_name} is Unavailable.")

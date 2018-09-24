@@ -1,5 +1,6 @@
 import os
 import readline
+import paramiko
 from lib.connections import *
 from lib.autocomplete import *
 import configparser
@@ -68,12 +69,23 @@ def server_ini_creator(path):
         if (pkey_path == ''):
             pkey_path = os.path.join(home, '.ssh', 'id_rsa')
 
-        
-        config[server[0]] = {'HOST'    : server[1].strip(),
-                             'UNAME'   : server[2].strip(),
-                             'PORT'    : server[3].strip(),
-                             'PKEY'    : pkey_path,
-                             'JUPYTER' : server[4].strip()}
+        try:
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            ssh_pkey = paramiko.RSAKey.from_private_key_file(pkey_path)
+            ssh.connect(server[1].strip(), port=server[3].strip(), pkey=ssh_pkey, username=server[2].strip())
+            print (f'[+] Success for host: {server[1].strip()}')
+
+            _, stdout, _ = ssh.exec_command('echo $HOME')
+
+            config[server[0]] = {'HOST'    : server[1].strip(),
+                                'UNAME'   : server[2].strip(),
+                                'PORT'    : server[3].strip(),
+                                'PKEY'    : pkey_path,
+                                'RECON_PATH': os.path.join(stdout.readlines()[0].strip('\n'), '.recon'),
+                                'JUPYTER' : server[4].strip()}
+        except:
+            print(f"[-] Host {server[1].strip()} is Unavailable.")
 
     with open(os.path.join(path,'config','servers.ini'), 'w+') as configfile:
         config.write(configfile)
