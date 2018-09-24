@@ -4,38 +4,6 @@ import configparser
 from pathlib import Path
 from lib.autocomplete import *
 
-
-### UPDATED ###
-def server_ini_creator(path):
-    home = str(Path.home())
-    config = configparser.ConfigParser()
-    
-    info = str(input('Add servers -> Nickname, Host, Username, Port, Enable-Jupyter-Forwarding(y/n) / next server...\n ex. pi, 192.168.1.1, Josh, 22, y \n'))
-    servers = info.split('/')
-
-    readline.set_completer_delims('\t')
-    readline.parse_and_bind("tab: complete")
-    readline.set_completer(pathCompleter)
-
-    for server in servers:
-        server = server.split(',')
-        pkey_path = input(f'RSA (Private) Key Path for Server {server[1].strip()} (Default: {os.path.join(home, ".ssh", "id_rsa")}): ')
-
-        if (pkey_path == ''):
-            pkey_path = os.path.join(home, '.ssh', 'id_rsa')
-
-        
-        config[server[0]] = {'HOST'    : server[1].strip(),
-                             'UNAME'   : server[2].strip(),
-                             'PORT'    : server[3].strip(),
-                             'PKEY'    : pkey_path,
-                             'JUPYTER' : server[4].strip()}
-
-    with open(os.path.join(path,'config','servers.ini'), 'w+') as configfile:
-        config.write(configfile)
-##############
-	
-    	
 def get_path():
     readline.set_completer_delims('\t')
     readline.parse_and_bind("tab: complete")

@@ -1,8 +1,8 @@
 import subprocess
 import configparser
 import paramiko
-from lib.server_setup import server_ini_creator, create_dir_tree, get_path
-from lib import env_config, connections, workspaces, workspace_sync
+from lib.server_setup import create_dir_tree, get_path
+from lib import env_config, connections, workspace_sync, ini_lib
 import os, time
 from pathlib import Path
 import pprint
@@ -41,7 +41,7 @@ copy("flas",f"{local_recon_path}")
 print ('[+] Local file transfering complete.')
 
 ## CREATE THE INI FILE THAT CONTAINS INFO ABOUT THE SERVERS
-server_ini_creator(local_recon_path)
+ini_lib.server_ini_creator(local_recon_path)
 print ('[+] Created Configuration ini')
 ini_path = os.path.join(config_path, 'servers.ini')
 
@@ -56,9 +56,14 @@ print ('[+] Created Remote Tree.')
 
 #### WORKSPACES ####
 # Create workspaces ini
-workspace_path = workspaces.workspace_ini_creator(config_path)
+workspace_path = ini_lib.workspace_ini_creator(config_path)
 workspace_sync.synchronize(workspace_path, os.path.join(local_recon_path,config_path), daemon_mode=False)
 print ('[+] Created workspaces ini.')
+
+#### PROPERTIES ####
+# Create props ini
+workspace_path = ini_lib.props_ini_creator(config_path)
+print ('[+] Created props ini.')
 
 ### ENVIRONMENTS ####
 ## SELECT THE CONDA ENV THAT WILL BE REPLICATED ON THE SERVERS 

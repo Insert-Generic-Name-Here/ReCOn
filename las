@@ -9,9 +9,9 @@ import argparse
 from setuptools import find_packages
 from lib import connections
 
-def get_srvname(server_name):
+def get_srvname(props, server_name):
 	if server_name == None:
-		return servers['default']['server']
+		return props['default-server']
 	else:
 		return server_name
 
@@ -19,6 +19,9 @@ recon_path = os.path.dirname(os.path.abspath(__file__))
 
 servers = configparser.ConfigParser()
 servers.read(os.path.join(recon_path,'config/servers.ini'))
+
+props = configparser.ConfigParser()
+props.read(os.path.join(recon_path,'config/props.ini'))
 
 server_parser = argparse.ArgumentParser(add_help=False)
 server_parser.add_argument('--server','-s',dest='server_name',nargs='?',choices=servers.sections(), help='Pick a server from the available ones',metavar='SERVER_NAME')
@@ -28,14 +31,24 @@ all_parser.add_argument('--all', '-a',default=False, action="store_true", help= 
 
 parser = argparse.ArgumentParser(description='Process some integers.')
 subparser = parser.add_subparsers(metavar='command', dest= 'func')
+
 run = subparser.add_parser('exec', help = 'Execute a command on server',description='Process some integers.', parents=[server_parser])
 run.add_argument('command',nargs='?',type=str )
+
 add = subparser.add_parser('add', help = 'Add server or directory to workspace')
 add.add_argument('type',nargs='?',choices = ['server','directory'],type=str )
-info = subparser.add_parser('info', help='Show info', parents=[server_parser, all_parser])
+
+def_srv = subparser.add_parser('default-server')
+def_srv.add_argument('server',nargs='?',choices=servers.sections(), help='Pick a server from the available ones',metavar='SERVER_NAME')
+
+auto_sync = subparser.add_parser('auto-sync')
+
 sync = subparser.add_parser('sync', help='Sync files on server', parents=[server_parser, all_parser])
+
 portf = subparser.add_parser('port-forward', help='Setup port forwarding', parents=[server_parser])
+
 connect = subparser.add_parser('connect', help='Open an interactive ssh connection with server', parents=[server_parser])
+
 args = parser.parse_args()
 print ('known',vars(args))
 
@@ -46,7 +59,7 @@ if args.func == 'sync':
 
 if args.func == 'exec':
 
-	server_name = get_srvname(args.server_name)
+	server_name = get_srvname(props,args.server_name)
 
 	server_dict = connections.get_servers(os.path.join(recon_path,'config/servers.ini'),server_name)  
 
@@ -57,15 +70,16 @@ if args.func == 'exec':
 	stdout.channel.recv_exit_status()                                   
 	pass
 
-if args.func == 'add':
-	if args.type == 'server':
-		# add server
-	else:
-		#add dir to workspace
-		pass
+# if args.func == 'add':
+# 	if args.type == 'server':
+# 		# add server
+# 	else:
+
+# 		#add dir to workspace
+# 		pass
 
 if args.func == 'connect':
-	server_name = get_srvname(args.server_name)
+	server_name = get_srvname(props, args.server_name)
 	connections.interactive_ssh(servers, server_name)
 
 
