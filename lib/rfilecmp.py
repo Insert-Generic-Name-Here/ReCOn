@@ -65,6 +65,24 @@ def clear_cache():
     _cache.clear()
 
 
+def cmpolder(local_file, remote_file, sftp_client):
+    '''
+    Compare two Files to see which is the oldest.
+
+    Arguments:
+    local_file -- First file name
+    remote_file -- Second file name
+    sftp_client -- The Paramiko Object of the SFTP Connection to the Server
+    
+    Return value:
+    True if local_file is the newest, False otherwise.
+    '''
+    st_local_mtime  = os.stat(local_file).st_mtime
+    st_remote_mtime = sftp_client.stat(remote_file).st_mtime
+    
+    return True if (st_local_mtime > st_remote_mtime) else False
+
+
 def cmphash(local_file, remote_file, sftp_client):
     '''
     Compare two Files using the MD5 Hash Algorithm
