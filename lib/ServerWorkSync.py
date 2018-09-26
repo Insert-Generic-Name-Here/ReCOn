@@ -1,17 +1,16 @@
 '''
-Version 2.0 - Now \w Journals
+Version 3.0 - Now \w Journals and Threading
 '''
 from watchdog.events import PatternMatchingEventHandler
 from colorama import Fore, Style
 from lib.rfilecmp import cmp
 import stat,csv,time
 import pandas as pd
+import threading
 import paramiko
 import os,errno
 
 
-# TODO #1: What to do when the Connection is dropped?
-# TODO #2: Algorithm to attempt reconnection 
 '''(Hint: Check threading -> Attempt to connect (required data on ssh_client_dict) every X seconds)'''
 # TODO #3: Implement a startup script to invoke ServerWorkSync for each workspace @workspaces.ini
 '''(Hint: Check the workspace_sync_toy_example.py and generalize its behavior for each workspace'''
@@ -19,25 +18,154 @@ import os,errno
 
 
 class ServerWorkSync(PatternMatchingEventHandler):
-    def __init__(self, ssh_client_dict, localpath, remotepath, hostname='', autosync=False, verbose=False, shallow_filecmp=True,\
+    def __init__(self, ssh_client_dict, localpath, remotepath, hostname='', verbose=False, shallow_filecmp=True, autosync=False, sync_interval=30, reconnect_interval=30,\
                  patterns=None, ignore_patterns=None, ignore_directories=False, case_sensitive=False):   
         super(ServerWorkSync, self).__init__(patterns, ignore_patterns, ignore_directories, case_sensitive)    
         self.localpath = localpath
         self.remotepath = remotepath
         self.hostname = hostname
-        self.autosync = autosync
         self.verbose = verbose
         self.shallow_filecmp = shallow_filecmp
-        self.root = os.path.split(localpath)[1]
+        self.autosync = autosync
+        self.sync_interval=30
+        self.reconnect_interval=30
 
-        self.ssh_client_dict = ssh_client_dict
-        self.sftp_client = ssh_client_dict['connection'].open_sftp()
-        
-        self.journal_path = os.path.join('..', 'logs', 'journal.csv')
+        self.journal_path = os.path.join(os.path.join(os.path.expanduser('~'), '.recon', 'logs', 'journal.csv'))
         if not os.path.exists(self.journal_path):
             self.__journal(mode='h', data=['timestamp' ,'event' , 'src', 'dest'])
+        
+        self.root = os.path.split(localpath)[1]
+        self.ssh_client_dict = ssh_client_dict
 
-        self.__handshake()
+        try:
+            self.sftp_client = ssh_client_dict['connection'].open_sftp()            
+        except (paramiko.SSHException): #SSH session not active
+            reconn_thread = threading.Thread(target=self.__reconnect)
+            reconn_thread.start()
+            reconn_thread.join()
+        
+        
+        if autosync:
+            self.sync_thread = threading.Thread(target=self.__sync)
+            self.sync_thread.start()
+            
+            
+    def exec_journals(self):
+        direxists = self.__directory_exists(os.path.join(self.remotepath, self.root))
+        print (f'{"@"+self.hostname+" " if self.hostname else ""}Reading the Journals. Updating Remote Server Files...\n')
+        
+        ''' If the Directory does not Exist (First-Time Syncing) Create the whole Directory Tree '''
+        if not direxists:
+            self.__cwd_scp(self.localpath, self.remotepath)
+        else:
+            ''' Read the Journal and Update the Necessary Files '''
+            for activity in self.__journal():
+                # activity : ['timestamp' ,'event' , 'src', 'dest']
+                src_path = activity[2]
+                if activity[1] == 'moved':
+                    dest_path = activity[3]
+                    self.sftp_client.posix_rename(os.path.join(self.remotepath, self.root, ''.join(src_path.split(self.root, 1)[1:]).strip('/')), 
+                                                  os.path.join(self.remotepath, self.root, ''.join(dest_path.split(self.root, 1)[1:]).strip('/')))
+                elif activity[1] == 'created':
+                    dest_path = os.path.join(self.remotepath, self.root, ''.join(src_path.split(self.root, 1)[1:]).strip('/'))
+                    if os.path.isdir(src_path):
+                        self.sftp_client.mkdir(dest_path)
+                    else:
+                        self.sftp_client.put(src_path, dest_path, callback=None, confirm=True)
+                elif activity[1] == 'deleted':
+                    dest_path = os.path.join(self.remotepath, self.root, ''.join(src_path.split(self.root, 1)[1:]).strip('/'))
+                    if os.path.isdir(src_path):
+                        self.sftp_client.rmdir(dest_path)  
+                    else:
+                        self.sftp_client.remove(dest_path)  
+                elif activity[1] == 'modified':
+                    dest_path = os.path.join(self.remotepath, self.root, ''.join(src_path.split(self.root, 1)[1:]).strip('/'))
+                    if os.path.isdir(src_path):
+                        pass
+                    else:
+                        if not cmp(src_path, dest_path, self.sftp_client, shallow=self.shallow_filecmp):
+                            self.sftp_client.put(src_path, dest_path, callback=None, confirm=True)            
+
+    
+    def on_moved(self, event):
+        super(ServerWorkSync, self).on_moved(event)
+        timestamp = int(time.time())
+
+        what = 'directory' if event.is_directory else 'file'
+        if self.verbose: print(f'{"@"+self.hostname+" " if self.hostname else ""}{self.__colorize("Moved", "b")} {what}: from {event.src_path} to {event.dest_path}')
+    
+        rec = [timestamp, 'moved', event.src_path, event.dest_path]
+        self.__journal(mode='w', data=rec)
+    
+
+    def on_created(self, event):
+        super(ServerWorkSync, self).on_created(event)
+        timestamp = int(time.time())
+
+        what = 'directory' if event.is_directory else 'file'
+        if self.verbose: print(f'{"@"+self.hostname+" " if self.hostname else ""}{self.__colorize("Created", "g")} {what}: {event.src_path}')
+
+        rec = [timestamp, 'created', event.src_path, '']
+        self.__journal(mode='w', data=rec)                          
+        
+        
+    def on_deleted(self, event):
+        super(ServerWorkSync, self).on_deleted(event)
+        timestamp = int(time.time())
+
+        what = 'directory' if event.is_directory else 'file'
+        if self.verbose: print(f'{"@"+self.hostname+" " if self.hostname else ""}{self.__colorize("Deleted", "r")} {what}: {event.src_path}')
+
+        rec = [timestamp, 'deleted', event.src_path, '']
+        self.__journal(mode='w', data=rec)
+        
+
+    def on_modified(self, event):
+        super(ServerWorkSync, self).on_modified(event)
+        timestamp = int(time.time())
+        
+        what = 'directory' if event.is_directory else 'file'
+        if self.verbose: print(f'{"@"+self.hostname+" " if self.hostname else ""}{self.__colorize("Modified", "y")} {what}: {event.src_path}')
+
+        rec = [timestamp, 'modified', event.src_path, '']
+        self.__journal(mode='w', data=rec)
+
+
+    #####################################################################################
+    ################################# PRIVATE FUNCTIONS #################################
+    #####################################################################################
+
+
+    def __reconnect(self):
+        while True:
+            try:
+                ssh_client = paramiko.SSHClient()
+                ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                ssh_pkey = paramiko.RSAKey.from_private_key_file(self.ssh_client_dict['pkey'])
+                ssh_client.connect(hostname=self.ssh_client_dict['host'], username=self.ssh_client_dict['uname'],\
+                                port=self.ssh_client_dict['port'], pkey=ssh_pkey)
+                self.ssh_client_dict['connection'] = ssh_client
+                self.sftp_client = self.ssh_client_dict['connection'].open_sftp()
+                break
+            except (paramiko.SSHException, IOError):
+                pass
+            time.sleep(self.reconnect_interval)
+
+    
+    def __sync(self):
+        while True:
+            try:
+                self.__exec_journals()
+                self.__clear_journals()
+            except (paramiko.SSHException, IOError): #SSH session not active
+                self.__reconnect()
+            finally:
+                time.sleep(self.sync_interval)
+
+
+    #####################################################################################
+    ################################ AUXILIARY FUNCTIONS ################################
+    #####################################################################################
 
 
     def __colorize(self, msg, color):
@@ -133,21 +261,33 @@ class ServerWorkSync(PatternMatchingEventHandler):
 
 
     def __filter_journals(self):
-        with self.sftp_client.open(os.path.join(self.ssh_client_dict['recon_path'], 'logs', 'journal.csv'), 'r') as f:
-            remote_journal = pd.read_csv(f, index_col=[0])
-            remote_journal.iloc[0:0].to_csv(f)
+        try:
+            with self.sftp_client.open(os.path.join(self.ssh_client_dict['recon_path'], 'logs', 'journal.csv'), 'r') as f:
+                remote_journal = pd.read_csv(f, index_col=[0])
+        except FileNotFoundError:
+            remote_journal = None
+        
         local_journal  = pd.read_csv(os.path.join(os.path.expanduser('~'), '.recon', 'logs', 'journal.csv'), index_col=[0])
-
         fn = pd.concat([remote_journal,local_journal], ignore_index=True)
 
         fn['rel'] = fn['src'].apply(lambda path: ''.join(path.split(self.root, 1)[1:]).strip('/'))
         exp = fn.loc[fn.groupby(['rel']).timestamp.idxmax()]
 
-        with self.sftp_client.open(os.path.join(self.ssh_client_dict['recon_path'], 'logs', 'journal.csv'), 'w+') as f:
-            remote_journal.iloc[0:0].to_csv(f)
-
-        local_journal.iloc[0:0].to_csv(os.path.join(os.path.expanduser('~'), '.recon', 'logs', 'journal.csv'))
         return exp.drop(['rel'], axis=1)
+
+
+    # TODO: Make it better, Make it fast.
+    def __clear_journals(self):
+        try:
+            with self.sftp_client.open(os.path.join(self.ssh_client_dict['recon_path'], 'logs', 'journal.csv'), 'r') as f:
+                remote_journal = pd.read_csv(f, index_col=[0])
+            with self.sftp_client.open(os.path.join(self.ssh_client_dict['recon_path'], 'logs', 'journal.csv'), 'w+') as f:
+                remote_journal.iloc[0:0].to_csv(f)
+        except FileNotFoundError:
+            pass
+
+        local_journal  = pd.read_csv(os.path.join(os.path.expanduser('~'), '.recon', 'logs', 'journal.csv'), index_col=[0])
+        local_journal.iloc[0:0].to_csv(os.path.join(os.path.expanduser('~'), '.recon', 'logs', 'journal.csv'))
 
 
     def __journal(self, mode='r', data=None):
@@ -165,136 +305,3 @@ class ServerWorkSync(PatternMatchingEventHandler):
             with open(self.journal_path, mode='w') as f:
                 writer = csv.writer(f)
                 writer.writeheader(data)
-
-
-    def __handshake(self):
-        direxists = self.__directory_exists(os.path.join(self.remotepath, self.root))
-        print (f'{"@"+self.hostname+" " if self.hostname else ""}Initiating Handshake. Updating Remote Server Files...\n')
-        
-        ''' If the Directory does not Exist (First-Time Syncing) Create the whole Directory Tree '''
-        if not direxists:
-            self.__cwd_scp(self.localpath, self.remotepath)
-        else:
-            ''' Read the Journal and Update the Necessary Files '''
-            for activity in self.__journal():
-                # activity : ['timestamp' ,'event' , 'src', 'dest']
-                src_path = activity[2]
-                if activity[1] == 'moved':
-                    dest_path = activity[3]
-                    self.sftp_client.posix_rename(os.path.join(self.remotepath, self.root, ''.join(src_path.split(self.root, 1)[1:]).strip('/')), 
-                                                  os.path.join(self.remotepath, self.root, ''.join(dest_path.split(self.root, 1)[1:]).strip('/')))
-                elif activity[1] == 'created':
-                    dest_path = os.path.join(self.remotepath, self.root, ''.join(src_path.split(self.root, 1)[1:]).strip('/'))
-                    if os.path.isdir(src_path):
-                        self.sftp_client.mkdir(dest_path)
-                    else:
-                        self.sftp_client.put(src_path, dest_path, callback=None, confirm=True)
-                elif activity[1] == 'deleted':
-                    dest_path = os.path.join(self.remotepath, self.root, ''.join(src_path.split(self.root, 1)[1:]).strip('/'))
-                    if os.path.isdir(src_path):
-                        self.sftp_client.rmdir(dest_path)  
-                    else:
-                        self.sftp_client.remove(dest_path)  
-                elif activity[1] == 'modified':
-                    dest_path = os.path.join(self.remotepath, self.root, ''.join(src_path.split(self.root, 1)[1:]).strip('/'))
-                    if os.path.isdir(src_path):
-                        pass
-                    else:
-                        if not cmp(src_path, dest_path, self.sftp_client, shallow=self.shallow_filecmp):
-                            self.sftp_client.put(src_path, dest_path, callback=None, confirm=True)
-            
-    
-    def on_moved(self, event):
-        super(ServerWorkSync, self).on_moved(event)
-        timestamp = int(time.time())
-
-        what = 'directory' if event.is_directory else 'file'
-        if self.verbose: print(f'{"@"+self.hostname+" " if self.hostname else ""}{self.__colorize("Moved", "b")} {what}: from {event.src_path} to {event.dest_path}')
-        
-        try:
-            if self.autosync:
-                self.sftp_client.posix_rename(os.path.join(self.remotepath, self.root, ''.join(event.src_path.split(self.root, 1)[1:]).strip('/')), 
-                                            os.path.join(self.remotepath, self.root, ''.join(event.dest_path.split(self.root, 1)[1:]).strip('/')))
-            else:
-                rec = [timestamp, 'moved', event.src_path, event.dest_path]
-                self.__journal(mode='w', data=rec)
-
-        except FileNotFoundError:
-            if self.verbose: print(f'{"@"+self.hostname+" " if self.hostname else ""}{what}: {event.src_path} does not Exist!')
-        except IOError:
-            if self.verbose: print(f'{"@"+self.hostname+" " if self.hostname else ""}{what}: {event.src_path} is Already Moved!')
-        
-    
-    def on_created(self, event):
-        super(ServerWorkSync, self).on_created(event)
-        timestamp = int(time.time())
-
-        what = 'directory' if event.is_directory else 'file'
-        if self.verbose: print(f'{"@"+self.hostname+" " if self.hostname else ""}{self.__colorize("Created", "g")} {what}: {event.src_path}')
-        
-        try:
-            if self.autosync:
-                dest_path = os.path.join(self.remotepath, self.root, ''.join(event.src_path.split(self.root, 1)[1:]).strip('/'))
-                if event.is_directory:
-                    self.sftp_client.mkdir(dest_path)
-                else:
-                    self.sftp_client.put(event.src_path, dest_path, callback=None, confirm=True)
-            else:
-                rec = [timestamp, 'created', event.src_path, '']
-                self.__journal(mode='w', data=rec)
-
-        except FileNotFoundError:
-            if self.verbose: print(f'{"@"+self.hostname+" " if self.hostname else ""}{what}: {event.src_path} does not Exist!')
-        except IOError:
-            if (event.is_directory):
-                if self.verbose: print(f'{"@"+self.hostname+" " if self.hostname else ""}{what}: {event.src_path} is Already Created!')
-                            
-        
-    def on_deleted(self, event):
-        super(ServerWorkSync, self).on_deleted(event)
-        timestamp = int(time.time())
-
-        what = 'directory' if event.is_directory else 'file'
-        if self.verbose: print(f'{"@"+self.hostname+" " if self.hostname else ""}{self.__colorize("Deleted", "r")} {what}: {event.src_path}')
-        
-        try:
-            if self.autosync:
-                dest_path = os.path.join(self.remotepath, self.root, ''.join(event.src_path.split(self.root, 1)[1:]).strip('/'))
-                if event.is_directory:
-                    self.sftp_client.rmdir(dest_path)  
-                else:
-                    self.sftp_client.remove(dest_path)  
-            else:
-                rec = [timestamp, 'deleted', event.src_path, '']
-                self.__journal(mode='w', data=rec)
-
-        except FileNotFoundError:
-            pass
-        except IOError:
-            if self.verbose: print(f'{"@"+self.hostname+" " if self.hostname else ""}{what}: {event.src_path} is Already Deleted!')
-
-        
-    def on_modified(self, event):
-        super(ServerWorkSync, self).on_modified(event)
-        timestamp = int(time.time())
-        
-        what = 'directory' if event.is_directory else 'file'
-        if self.verbose: print(f'{"@"+self.hostname+" " if self.hostname else ""}{self.__colorize("Modified", "y")} {what}: {event.src_path}')
-
-        try:
-            if self.autosync:
-                dest_path = os.path.join(self.remotepath, self.root, ''.join(event.src_path.split(self.root, 1)[1:]).strip('/'))
-                if event.is_directory:
-                    # NOTE: idk if this event is useful for directories, so i'll leave it for future use.
-                    pass
-                else:
-                    if not cmp(event.src_path, dest_path, self.sftp_client, shallow=self.shallow_filecmp):
-                        self.sftp_client.put(event.src_path, dest_path, callback=None, confirm=True)
-                    else:
-                        if self.verbose: print(f'{"@"+self.hostname+" " if self.hostname else ""}{what}: {event.src_path} is the Same (No need for Upload)!')
-            else:
-                rec = [timestamp, 'modified', event.src_path, '']
-                self.__journal(mode='w', data=rec)
-
-        except FileNotFoundError:
-            if self.verbose: print(f'{"@"+self.hostname+" " if self.hostname else ""}{what}: {event.src_path} does not Exist!')
