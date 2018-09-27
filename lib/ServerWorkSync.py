@@ -27,8 +27,8 @@ class ServerWorkSync(PatternMatchingEventHandler):
         self.verbose = verbose
         self.shallow_filecmp = shallow_filecmp
         self.autosync = autosync
-        self.sync_interval=30
-        self.reconnect_interval=30
+        self.sync_interval=sync_interval
+        self.reconnect_interval=reconnect_interval
 
         self.journal_path = os.path.join(os.path.join(os.path.expanduser('~'), '.recon', 'logs', 'journal.csv'))
         if not os.path.exists(self.journal_path):

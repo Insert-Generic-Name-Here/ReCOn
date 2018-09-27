@@ -1,8 +1,9 @@
 import os
+import signal
 from sys import argv
 import paramiko
 import configparser
-from lib.connections import select_server
+from lib.connections import select_server, get_servers
 import lib.ServerWorkSync as sync
 from watchdog.observers import Observer
 from time import gmtime, strftime, sleep
@@ -18,41 +19,40 @@ from time import gmtime, strftime, sleep
 
 
 if __name__ == '__main__':
-    ssh_config = configparser.ConfigParser()
-    ssh_config.read('servers.ini')
-    # ssh_config.read(os.path.join('lib', 'utilities','ssh_config.ini'))
-    ssh_config = select_server(ssh_config)
+    properties = configparser.ConfigParser()
+    properties.read(os.path.join('config','props.ini'))
+    properties = properties['properties']
 
-    curr_server = {'host':ssh_config['HOST'], 'uname':ssh_config['UNAME'], 'port':ssh_config['PORT'], 
-                   'pkey':ssh_config['PKEY'], 'recon_path':os.path.join('/home',ssh_config['UNAME'],'.recon')}
-    
-    # Initiating the Connection
-    ssh_client = paramiko.SSHClient()
-    ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    ssh_pkey = paramiko.RSAKey.from_private_key_file(curr_server['pkey'])    
-    
-    ssh_client.connect(hostname=curr_server['host'], username=curr_server['uname'], port=curr_server['port'], pkey=ssh_pkey)
-    curr_server['connection'] = ssh_client
+    workspaces_config = configparser.ConfigParser()
+    workspaces_config.read(os.path.join('config','workspaces.ini'))
 
-    # Initiating the Client and Server paths 
-    ## Get The HOME Directory of the SSH Server
-    stdin, stdout, stderr = curr_server['connection'].exec_command("echo $HOME")
-    ssh_server_home_dir = stdout.readlines()[0].split('\n')[0]
-    # ssh_server_home_dir
+    default_server = get_servers(os.path.join('config','servers.ini'), properties['default-server'])
+    server_workspaces = workspaces_config[properties['default_server']]
 
-    ## Get the Workspace Directory of SSH Client 
-    ssh_client_localpath = os.path.abspath(".")
-    # ssh_client_localpath
+    try:
+        # Initiating the Client and Server paths 
+        # Get The HOME Directory of the SSH Server
+        stdin, stdout, stderr = default_server['connection'].exec_command("echo $HOME")
+        ssh_server_home_dir = stdout.readlines()[0].split('\n')[0]
 
-    ## Instantiate a ServerWorkSync WatchDog (handler) as well as a Recursive Observer Object for the given handler
-    handler = sync.ServerWorkSync(curr_server['connection'], localpath = ssh_client_localpath, remotepath = ssh_server_home_dir, verbose=True)  
-    observer = Observer()
-    observer.schedule(handler, path = ssh_client_localpath, recursive = True)
-    observer.start()
+        for workspace_name in server_workspaces:
+            ## Get the Workspace Directory of SSH Client 
+            workspace_path = server_workspaces[workspace_name]
 
+            ## Instantiate a ServerWorkSync WatchDog (handler) as well as a Recursive Observer Object for the given handler
+            handler = sync.ServerWorkSync(default_server, localpath = workspace_path, remotepath = ssh_server_home_dir, verbose=True)  
+            observer = Observer()
+            observer.schedule(handler, path = workspace_path, recursive = True)
+            observer.start()
+
+    except (paramiko.SSHException, IOError):
+        print (f'Can\'t connect to Server {properties["default-server"]}')
+
+#TODO: Handle System Shutdown Gracefully
     try:
         while True:
             print(strftime("%Y-%m-%d %H:%M:%S", gmtime()), end='\r', flush=True)
+            signal.signal(signal.SIGTERM, {raise KeyboardInterrupt})
             sleep(1)
     except KeyboardInterrupt:
         print ('\nStopping the Observer...')

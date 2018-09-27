@@ -45,7 +45,7 @@ if __name__ == '__main__':
     # ssh_client_localpath
 
     ## Instantiate a ServerWorkSync WatchDog (handler) as well as a Recursive Observer Object for the given handler
-    handler = sync.ServerWorkSync(curr_server['connection'], localpath = ssh_client_localpath, remotepath = ssh_server_home_dir, verbose=True)  
+    handler = sync.ServerWorkSync(curr_server, localpath = ssh_client_localpath, remotepath = ssh_server_home_dir, verbose=True)  
     observer = Observer()
     observer.schedule(handler, path = ssh_client_localpath, recursive = True)
     observer.start()
