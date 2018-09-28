@@ -1,5 +1,5 @@
-from colorama import Fore, Style
 from lib.rfilecmp import cmp
+from colorama import Fore, Style
 import stat,csv,time
 import pandas as pd
 import threading
@@ -8,46 +8,39 @@ import os,errno
 
 
 '''(Hint: Check threading -> Attempt to connect (required data on ssh_client_dict) every X seconds)'''
-# TODO #3: Implement a startup script to invoke ServerWorkSync for each workspace @workspaces.ini
+# TODO #3: Implement a startup script to invoke JournalSyncing for each workspace @workspaces.ini
 '''(Hint: Check the workspace_sync_toy_example.py and generalize its behavior for each workspace'''
 # TODO #4: Implement the back-and-forth sync automatically (without executing two separate scripts)
 
 
-class ServerWorkSync:
-    def __init__(self, ssh_client_dict, localpath, remotepath, hostname='', verbose=False,\
-                 shallow_filecmp=True, autosync=False, sync_interval=30, reconnect_interval=30):   
-        super(ServerWorkSync, self).__init__(patterns, ignore_patterns, ignore_directories, case_sensitive)    
-        self.localpath = localpath
-        self.remotepath = remotepath
-        self.hostname = hostname
-        self.verbose = verbose
-        self.shallow_filecmp = shallow_filecmp
-        self.autosync = autosync
-        self.sync_interval=sync_interval
-        self.reconnect_interval=reconnect_interval
-
-        self.journal_path = os.path.join(os.path.join(os.path.expanduser('~'), '.recon', 'logs', 'journal.csv'))
-        if not os.path.exists(self.journal_path):
-            self.__journal(mode='h', data=['timestamp' ,'event' , 'src', 'dest'])
-        
-        self.root = os.path.split(localpath)[1]
+class JournalSyncing:
+    def __init__(self, journal, ssh_client_dict, localpath, remotepath, verbose=False, shallow_filecmp=True):   
         self.ssh_client_dict = ssh_client_dict
+        self.localpath       = localpath
+        self.remotepath      = remotepath
+        self.verbose         = verbose
+        self.shallow_filecmp = shallow_filecmp
 
+        self.root            = os.path.split(self.localpath)[1]
+        self.sftp_client     = self.ssh_client_dict['connection'].open_sftp()
+         
         try:
-            self.sftp_client = ssh_client_dict['connection'].open_sftp()            
-        except (paramiko.SSHException): #SSH session not active
-            reconn_thread = threading.Thread(target=self.__reconnect)
-            reconn_thread.start()
-            reconn_thread.join()
-            
-        if autosync:
-            self.sync_thread = threading.Thread(target=self.__sync)
-            self.sync_thread.start()
-            
-            
-    def exec_journals(self):
+            with self.sftp_client.open(os.path.join(self.ssh_client_dict['recon_path'], 'logs', 'journal.csv'), 'r') as f:
+                self.remote_journal = pd.read_csv(f, index_col=[0])
+        except FileNotFoundError:
+            self.remote_journal = None
+        finally:
+            self.local_journal  = journal
+
+
+    def journal_syncing(self):
+        self.__exec_journals()
+        self.__clear_journals()
+        
+
+    def __exec_journals(self):
         direxists = self.__directory_exists(os.path.join(self.remotepath, self.root))
-        print (f'{"@"+self.hostname+" " if self.hostname else ""}Reading the Journals. Updating Remote Server Files...\n')
+        print (f'{"@"+self.ssh_client_dict["host"]+" " if self.ssh_client_dict["host"] else ""}Reading the Journals. Updating Remote Server Files...\n')
         
         ''' If the Directory does not Exist (First-Time Syncing) Create the whole Directory Tree '''
         if not direxists:
@@ -82,41 +75,32 @@ class ServerWorkSync:
                             self.sftp_client.put(src_path, dest_path, callback=None, confirm=True)            
 
 
-    #####################################################################################
-    ################################# PRIVATE FUNCTIONS #################################
-    #####################################################################################
+    def __filter_journals(self):
+        concatenated_journals = pd.concat([self.remote_journal, self.local_journal], ignore_index=True)
+        concatenated_journals['rel'] = concatenated_journals['src'].apply(lambda path: ''.join(path.split(self.root, 1)[1:]).strip('/'))
+        filtered_journal = concatenated_journals.loc[concatenated_journals.groupby(['rel']).timestamp.idxmax()]
+        return filtered_journal.drop(['rel'], axis=1)
 
 
-    def __reconnect(self):
-        while True:
-            try:
-                ssh_client = paramiko.SSHClient()
-                ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-                ssh_pkey = paramiko.RSAKey.from_private_key_file(self.ssh_client_dict['pkey'])
-                ssh_client.connect(hostname=self.ssh_client_dict['host'], username=self.ssh_client_dict['uname'],\
-                                port=self.ssh_client_dict['port'], pkey=ssh_pkey)
-                self.ssh_client_dict['connection'] = ssh_client
-                self.sftp_client = self.ssh_client_dict['connection'].open_sftp()
-                break
-            except (paramiko.SSHException, IOError):
-                pass
-            time.sleep(self.reconnect_interval)
+    def __clear_journals(self):
+        if self.remote_journal is not None:
+            with self.sftp_client.open(os.path.join(self.ssh_client_dict['recon_path'], 'logs', 'journal.csv'), 'w+') as f:
+                self.remote_journal.iloc[0:0].to_csv(f)
 
-    
-    def __sync(self):
-        while True:
-            try:
-                self.__exec_journals()
-                self.__clear_journals()
-            except (paramiko.SSHException, IOError): #SSH session not active
-                self.__reconnect()
-            finally:
-                time.sleep(self.sync_interval)
+        local_journal  = pd.read_csv(os.path.join(os.path.expanduser('~'), '.recon', 'logs', 'journal.csv'), index_col=[0])
+        local_journal.iloc[0:0].to_csv(os.path.join(os.path.expanduser('~'), '.recon', 'logs', 'journal.csv'))
+
+
+    def __journal(self):
+        journal = self.__filter_journals()
+        for row in journal.iterrows():
+            yield row[1] 
 
 
     #####################################################################################
     ################################ AUXILIARY FUNCTIONS ################################
     #####################################################################################
+
 
 
     def __colorize(self, msg, color):
@@ -191,7 +175,7 @@ class ServerWorkSync:
             try:
                 self.sftp_client.stat(dir_)
             except:
-                if self.verbose: print (f'{"@"+self.hostname+" " if self.hostname else ""}{self.__colorize("Created", "g")} directory {dir_}')
+                if self.verbose: print (f'{"@"+self.ssh_client_dict["host"]+" " if self.ssh_client_dict["host"] else ""}{self.__colorize("Created", "g")} directory {dir_}')
                 self.sftp_client.mkdir(dir_)
 
 
@@ -206,43 +190,6 @@ class ServerWorkSync:
             except:
                 pass
             for file in walker[2]:
-                if self.verbose: print (f'\t{"@"+self.hostname+" " if self.hostname else ""}{self.__colorize("Copying", "g")} {os.path.join(walker[0],file)}...')
+                if self.verbose: print (f'\t{"@"+self.ssh_client_dict["host"]+" " if self.ssh_client_dict["host"] else ""}{self.__colorize("Copying", "g")} {os.path.join(walker[0],file)}...')
                 self.sftp_client.put(os.path.join(walker[0],file),os.path.join(remotepath,walker[0],file)) 
         os.chdir(tmp)
-
-
-    def __filter_journals(self):
-        try:
-            with self.sftp_client.open(os.path.join(self.ssh_client_dict['recon_path'], 'logs', 'journal.csv'), 'r') as f:
-                remote_journal = pd.read_csv(f, index_col=[0])
-        except FileNotFoundError:
-            remote_journal = None
-        
-        local_journal  = pd.read_csv(os.path.join(os.path.expanduser('~'), '.recon', 'logs', 'journal.csv'), index_col=[0])
-        fn = pd.concat([remote_journal,local_journal], ignore_index=True)
-
-        fn['rel'] = fn['src'].apply(lambda path: ''.join(path.split(self.root, 1)[1:]).strip('/'))
-        exp = fn.loc[fn.groupby(['rel']).timestamp.idxmax()]
-
-        return exp.drop(['rel'], axis=1)
-
-
-    # TODO: Make it better, Make it fast.
-    def __clear_journals(self):
-        try:
-            with self.sftp_client.open(os.path.join(self.ssh_client_dict['recon_path'], 'logs', 'journal.csv'), 'r') as f:
-                remote_journal = pd.read_csv(f, index_col=[0])
-            with self.sftp_client.open(os.path.join(self.ssh_client_dict['recon_path'], 'logs', 'journal.csv'), 'w+') as f:
-                remote_journal.iloc[0:0].to_csv(f)
-        except FileNotFoundError:
-            pass
-
-        local_journal  = pd.read_csv(os.path.join(os.path.expanduser('~'), '.recon', 'logs', 'journal.csv'), index_col=[0])
-        local_journal.iloc[0:0].to_csv(os.path.join(os.path.expanduser('~'), '.recon', 'logs', 'journal.csv'))
-
-
-    def __journal(self, mode='r', data=None):
-        if mode is 'r':
-            journal = self.__filter_journals()
-            for row in journal.iterrows():
-                yield row[1] 
