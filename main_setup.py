@@ -15,8 +15,8 @@ pp = pprint.PrettyPrinter(indent=4)
 
 #### IF YOU RUN ON MAC , ADD BASHRC TO .profile ###
 if platform.system() == 'Darwin':
-	subprocess.Popen("echo 'source ~/.bashrc' >> ~/.profile && . ~/.profile",shell=True, stdout=subprocess.PIPE)
-
+	subprocess.Popen("echo 'source /.bashrc' >> /.bash_profile",shell=True, stdout=subprocess.PIPE)
+	subprocess.Popen("ulimit -n 4096 >> /.bashrc && . /.bash_profile",shell=True, stdout=subprocess.PIPE)
 
 #### TREES AND LOGGING ####
 ## GET THE LOCAL /.RECON PATH AND INITIALIZE LOGS
