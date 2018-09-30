@@ -12,10 +12,11 @@ class WorkspaceWatchDog(PatternMatchingEventHandler):
         self.verbose        = verbose
 
         self.journal_path = os.path.join(os.path.join(os.path.expanduser('~'), '.recon', 'logs', f'{self.workspace_name}_journal.csv'))
+        self.journal_cols = ['timestamp' ,'event' , 'src', 'dest', 'local']
         if not os.path.exists(self.journal_path):
-            self.journal  = self.__journal(mode='h', data=['timestamp' ,'event' , 'src', 'dest', 'local'])
-        else:
-            self.journal  = pd.read_csv(self.journal_path, index_col=[0])
+            self.__journal(mode='h', data=self.journal_cols)
+        # else:
+            # pd.read_csv(self.journal_path, index_col=[0])
         
 
     def on_moved(self, event):
@@ -64,16 +65,16 @@ class WorkspaceWatchDog(PatternMatchingEventHandler):
 
     def __journal(self, mode='a', data=None):                   
         if mode is 'a':
-            new_row = pd.DataFrame([data], columns=self.journal.columns)
-            self.journal = pd.concat([self.journal, new_row], ignore_index=True)
-            self.journal.to_csv(self.journal_path)
-            if self.verbose: print(f'@{self.workspace_name} Activity Saved to {self.workspace_name}.csv Journal!')
+            new_row = pd.DataFrame([data], columns=self.journal_cols)
+            with open(self.journal_path, 'a') as f:
+                new_row.to_csv(f, header=False)
+            # if self.verbose: print(f'@{self.workspace_name} Activity Saved to {self.workspace_name}.csv Journal!')
 
         if mode is 'h':
             df = pd.DataFrame(columns=data)
             df.to_csv(self.journal_path)
             if self.verbose: print(f'@{self.workspace_name} Created {self.workspace_name}.csv Journal!')
-            return df
+            # return df
 
     
     def __colorize(self, msg, color):

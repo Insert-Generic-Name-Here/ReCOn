@@ -1,10 +1,12 @@
-from lib.rfilecmp import cmp
 from colorama import Fore, Style
+from lib.rfilecmp import cmp
 from time import sleep
 import stat,csv,time
 import pandas as pd
 import threading
 import paramiko
+from time import localtime, strftime, sleep, time
+
 import os,errno
 
 
@@ -15,7 +17,7 @@ import os,errno
 
 
 class JournalSyncing:
-    def __init__(self, ssh_client_dict, server_workspaces, remotepath, verbose=False, shallow_filecmp=True, sync_interval=30, reconnect_interval=10):   
+    def __init__(self, ssh_client_dict, server_workspaces, remotepath, verbose=False, shallow_filecmp=True, sync_interval=10, reconnect_interval=10):   
         self.ssh_client_dict    = ssh_client_dict
         self.server_workspaces  = server_workspaces
         self.remotepath         = remotepath
@@ -25,6 +27,7 @@ class JournalSyncing:
         self.reconnect_interval = reconnect_interval
         self.root               = {}           #os.path.split(self.localpath)[1]
         self.sftp_client        = self.ssh_client_dict['connection'].open_sftp()
+        # print(self.sftp_client.listdir())
         self.remote_journals    = {}
 
 
@@ -39,17 +42,33 @@ class JournalSyncing:
                 self.__scp_R(workspace_name)        
 
 
-    def journal_syncing(self):
-        try:
-            for workspace_name in self.server_workspaces:
-                local_journal = self.__read_local_journal(workspace_name)
-                # workspace_path = self.server_workspaces[workspace_name] ## Get the Workspace Directory of SSH Client 
-                self.__read_remote_journal(workspace_name)
-                self.__exec_journals(local_journal,workspace_name)
-                self.__clear_journals(workspace_name)
-        except paramiko.SSHException:
-            print (f'Can\'t connect to Server {self.ssh_client_dict["host"]}')
-            self.__reconnect()
+    def time_cli(self):
+        while True:
+            print(strftime("%Y-%m-%d %H:%M:%S", localtime()), end='\r', flush=True)
+            sleep(1)
+
+
+    def sync(self):
+        while True:
+            try:
+                self.__journal_syncing()
+
+                print (f'Connected to Server {self.ssh_client_dict["host"]}')
+            except paramiko.SSHException:
+                print (f'Can\'t connect to Server {self.ssh_client_dict["host"]}')
+                self.__reconnect()
+                continue
+            finally:
+                sleep(self.sync_interval)
+
+
+    def __journal_syncing(self):
+        for workspace_name in self.server_workspaces:
+            local_journal = self.__read_local_journal(workspace_name)
+            # workspace_path = self.server_workspaces[workspace_name] ## Get the Workspace Directory of SSH Client 
+            self.remote_journals[workspace_name] = self.__read_remote_journal(workspace_name)
+            self.__exec_journals(local_journal,workspace_name)
+            self.__clear_journals(workspace_name)
 
 
     def __reconnect(self):
@@ -123,12 +142,16 @@ class JournalSyncing:
                     print (f'Ommiting {" Directory" if os.path.isdir(src_path) else " File"}: {src_path}')     
 
 
-    def __read_remote_journal(self,workspace_name):     
+    def __read_remote_journal(self,workspace_name):
+        # print ('heelo')
+        print(self.sftp_client.listdir())     
         try:
+            print(os.path.join(self.ssh_client_dict['recon_path'], 'logs', f'{workspace_name}_journal.csv'))
             with self.sftp_client.open(os.path.join(self.ssh_client_dict['recon_path'], 'logs', f'{workspace_name}_journal.csv'), 'r') as f:
-                self.remote_journals[workspace_name] = pd.read_csv(f, index_col=[0])
-        except FileNotFoundError:
-            self.remote_journals[workspace_name] = None
+                print('ye')
+                return pd.read_csv(f, index_col=[0])
+        except :
+            return None
 
 
     def __read_local_journal(self,workspace_name):     
