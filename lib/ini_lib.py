@@ -6,8 +6,11 @@ from lib.autocomplete import *
 import configparser
 from pathlib import Path
 
-def workspace_ini_creator(config_path):
+def workspace_ini_creator(config_path, append=False, ws_path=None):
     Config = configparser.ConfigParser()
+    if append:
+        Config.read(os.path.join(ws_path))
+
     servers = configparser.ConfigParser()
     servers.read(os.path.join(config_path,'servers.ini'))
     srv = select_server(servers)
@@ -32,11 +35,13 @@ def workspace_ini_creator(config_path):
         else:
             print('[-] Path not available')
 
-
-    Config[srv.name] = {w_name: w_path}
-    with open(os.path.join(config_path,'workspaces.ini'), 'w+') as configfile:
-        Config.write(configfile)
-    return os.path.join(config_path,'workspaces.ini')
+    Config.set(srv.name , w_name, w_path)
+    if append:
+        return Config
+    else:
+        with open(os.path.join(config_path,'workspaces.ini'), 'w+') as configfile:
+            Config.write(configfile)
+        return os.path.join(config_path,'workspaces.ini')
 
 def props_ini_creator(config_path):
     Config = configparser.ConfigParser()
@@ -51,9 +56,11 @@ def props_ini_creator(config_path):
         Config.write(configfile)
     return os.path.join(config_path,'props.ini')
 
-def server_ini_creator(path):
+def server_ini_creator(path, append=False):
     home = str(Path.home())
     config = configparser.ConfigParser()
+    if append:
+        config.read(os.path.join(path))
     
     info = str(input('Add servers -> Nickname, Host, Username, Port, Enable-Jupyter-Forwarding(y/n) / next server...\n ex. pi, 192.168.1.1, Josh, 22, y \n'))
     servers = info.split('/')
@@ -87,5 +94,23 @@ def server_ini_creator(path):
         except:
             print(f"[-] Host {server[1].strip()} is Unavailable.")
 
-    with open(os.path.join(path,'config','servers.ini'), 'w+') as configfile:
+    if append:
+        return config
+        # with open(path, 'w') as configfile:
+        #     config.write(configfile)
+    else:   
+        with open(os.path.join(path,'config','servers.ini'), 'w+') as configfile:
+            config.write(configfile)
+
+def remove_server(server_config,workspace_config, server_name):
+    server_config.remove_section(server_name)
+    workspace_config.remove_section(server_name)
+    return server_config, workspace_config
+
+def save_ini(config, path, mode='w+'):
+    with open(path, mode) as configfile:
         config.write(configfile)
+
+def delete_workspace(ws_name, section, ws_config):
+    del ws_config[section][ws_name]
+    return ws_config

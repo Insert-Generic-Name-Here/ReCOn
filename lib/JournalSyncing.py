@@ -15,10 +15,9 @@ import os,errno
 
 
 class JournalSyncing:
-    def __init__(self, ssh_client_dict, server_workspaces, remotepath, verbose=False, shallow_filecmp=True, sync_interval=30, reconnect_interval=10):   
+    def __init__(self, ssh_client_dict, server_workspaces, verbose=False, shallow_filecmp=True, sync_interval=30, reconnect_interval=10):   
         self.ssh_client_dict    = ssh_client_dict
         self.server_workspaces  = server_workspaces
-        self.remotepath         = remotepath
         self.verbose            = verbose
         self.shallow_filecmp    = shallow_filecmp
         self.sync_interval      = sync_interval
@@ -26,7 +25,7 @@ class JournalSyncing:
         self.root               = {}           #os.path.split(self.localpath)[1]
         self.sftp_client        = self.ssh_client_dict['connection'].open_sftp()
         self.remote_journals    = {}
-
+        self.remotepath         = ssh_client_dict['connection'].exec_command("echo $HOME")[1].readlines()[0].split('\n')[0]
 
         for workspace_name in self.server_workspaces:
         ## Get the Workspace Directory of SSH Client 

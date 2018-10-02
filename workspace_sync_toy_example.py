@@ -49,8 +49,8 @@ if __name__ == '__main__':
 	workspaces_config = configparser.ConfigParser()
 	workspaces_config.read(os.path.join('.','config','workspaces.ini'))
 
-	default_server = get_servers(os.path.join('.','config','servers.ini'), properties['default-server'])
 	server_workspaces = workspaces_config[properties['default-server']]
+	default_server = get_servers(os.path.join('.','config','servers.ini'), properties['default-server'])
 	
 	autosync  = True
 	handlers  = {}
@@ -67,12 +67,11 @@ if __name__ == '__main__':
 		observers[workspace_name].schedule(handlers[workspace_name], path=workspace_path, recursive=True)
 		observers[workspace_name].start()
 
-	## Get the SSH Server Home Directory 
-	stdin, stdout, stderr = default_server['connection'].exec_command("echo $HOME")
-	ssh_server_home_dir = stdout.readlines()[0].split('\n')[0]
+
+
 
 	## Instantiate a JournalSyncing (handler)
-	jrnsync = JournalSyncing(default_server, server_workspaces, ssh_server_home_dir, verbose=True, shallow_filecmp=True)
+	jrnsync = JournalSyncing(default_server, server_workspaces, verbose=True, shallow_filecmp=True)
 	
 	## Instantiate a CLI Clock for Monitoring the Program's Activity
 	clk_thr = Process(target=time_cli)
@@ -80,9 +79,7 @@ if __name__ == '__main__':
 
 	# Handling System Shutdown Gracefully
 	## Instantiate a Signal Handler for System Shutdown
-	# signal.signal(signal.SIGTERM, partial(exit_handler, {'observers':observers, 'default_server':default_server, 'clk_thread':clk_thr}))
 	signal.signal(signal.SIGTERM, partial(exit_handler, observers, default_server, clk_thr))
-	# signal.signal(signal.SIGINT, partial(exit_handler, {'observers':observers, 'default_server':default_server, 'clk_thread':clk_thr}))
 	signal.signal(signal.SIGINT, partial(exit_handler, observers, default_server, clk_thr))
 
 
