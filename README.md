@@ -1,2 +1,2 @@
-# RemoteCompProject
+# RemoteCompProject THE RESURRECTION
 We are here to chew bubblegum and kill localized computing, and we are all out of bubblegum...
