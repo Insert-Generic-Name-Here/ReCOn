@@ -62,7 +62,8 @@ def sftp_upload(data, dest, server):
 	if file_name in files_in_dir:
 		print (f'[+] SFTP for file \'{file_name}\' on \'{server["uname"]}@{server["host"]}\' successful')
 	else:
-		print('[-] SFTP transfer failed')
+		# print('[-] SFTP transfer failed')
+		print (f'[-] SFTP for file \'{file_name}\' on \'{server["uname"]}@{server["host"]}\' failed')
 	sftp.close()
 	
 

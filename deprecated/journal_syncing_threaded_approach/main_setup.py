@@ -2,7 +2,7 @@ import subprocess
 import configparser
 import paramiko
 from lib.server_setup import create_dir_tree
-from lib import env_config, connections, ini_lib, JournalSyncing
+from lib import env_config, connections, workspace_sync, ini_lib
 import os, time
 from pathlib import Path
 import pprint
@@ -54,16 +54,11 @@ for srv in servers:
 	stdin, stdout, stderr = servers[srv]['connection'].exec_command(create_dir_tree(servers[srv]['recon_path'],dirs))
 print ('[+] Created Remote Tree.')
 
-
-# TODO: This is our 1st Culprit. Needs Fixing. There is a function with name sftp_upload (See if that rectifies the problem).
 #### WORKSPACES ####
 # Create workspaces ini
 workspace_path = ini_lib.workspace_ini_creator(config_path)
-# workspace_sync.synchronize(workspace_path, os.path.join(local_recon_path,config_path), daemon_mode=False)
-for srv in servers:
-	JournalSyncing(servers['srv'], {'ReCOn':workspace_path}, verbose=True, shallow_filecmp=True)
+workspace_sync.synchronize(workspace_path, os.path.join(local_recon_path,config_path), daemon_mode=False)
 print ('[+] Created workspaces ini.')
-
 
 #### PROPERTIES ####
 # Create props ini
