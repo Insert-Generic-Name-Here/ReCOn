@@ -29,7 +29,7 @@ class JournalSyncing:
 
         for workspace_name in self.server_workspaces:
         ## Get the Workspace Directory of SSH Client 
-            workspace_path = server_workspaces[workspace_name]
+            workspace_path = self.server_workspaces[workspace_name]
 
             self.root[workspace_name] = os.path.split(workspace_path)[1]
 

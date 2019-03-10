@@ -61,7 +61,7 @@ print ('[+] Created Remote Tree.')
 workspace_path = ini_lib.workspace_ini_creator(config_path)
 # workspace_sync.synchronize(workspace_path, os.path.join(local_recon_path,config_path), daemon_mode=False)
 for srv in servers:
-	JournalSyncing(servers['srv'], {'ReCOn':workspace_path}, verbose=True, shallow_filecmp=True)
+	JournalSyncing.JournalSyncing(servers[srv], {'ReCOn':workspace_path}, verbose=True, shallow_filecmp=True)
 print ('[+] Created workspaces ini.')
 
 
@@ -98,8 +98,14 @@ for srv in servers:
 			stdin, stdout, stderr = servers[srv]['connection'].exec_command(env_config.create_env(conda_dir, servers[srv]['uname'], selected_env))
 			
 			print(f'\n[+] Creating Remote Environment: {selected_env} ...')
+			
+			try: 
+				err_stream_msg = json.loads(''.join(stdout.readlines()))['error']
+			except json.decoder.JSONDecodeError:
+				stdout.channel.recv_exit_status()
+				break
 
-			if not json.loads(''.join(stdout.readlines()))['error']:
+			if not err_stream_msg:
 				stdout.channel.recv_exit_status()
 				break
 			else:

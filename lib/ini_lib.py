@@ -35,6 +35,7 @@ def workspace_ini_creator(config_path, append=False, ws_path=None):
         else:
             print('[-] Path not available')
 
+    Config.add_section(srv.name)
     Config.set(srv.name , w_name, w_path)
     if append:
         return Config
